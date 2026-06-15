@@ -229,7 +229,47 @@ class TestOrders:
     def _sample_items(self, s):
         prods = s.get(f"{API}/products").json()
         p = prods[0]
-        return [{"product_id": p["id"], "name": p["name"], "quantity": 2, "unit_price": p["price"]}]
+        return [{"product_id": p["id"], "quantity": 2}]
+
+    def _create_test_category(self, admin_headers):
+        cname = f"TEST_order_cat_{uuid.uuid4().hex[:6]}"
+        r = requests.post(
+            f"{API}/categories",
+            json={"name": cname, "description": "order security"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def _create_test_product(
+        self,
+        admin_headers,
+        category_id,
+        price=100.0,
+        available=True,
+        promo_active=False,
+        promo_price=None,
+    ):
+        r = requests.post(
+            f"{API}/products",
+            json={
+                "name": f"TEST_order_prod_{uuid.uuid4().hex[:6]}",
+                "description": "order security",
+                "image_url": "https://x.test/order.jpg",
+                "price": price,
+                "category_id": category_id,
+                "available": available,
+                "promo_active": promo_active,
+                "promo_price": promo_price,
+            },
+            headers=admin_headers,
+        )
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def _delete_test_product_and_category(self, admin_headers, product_id, category_id):
+        requests.delete(f"{API}/products/{product_id}", headers=admin_headers)
+        requests.delete(f"{API}/categories/{category_id}", headers=admin_headers)
 
     def test_guest_order(self, s):
         items = self._sample_items(s)
@@ -245,7 +285,11 @@ class TestOrders:
         d = r.json()
         assert d["status"] == "recebido"
         assert d["user_id"] is None
-        assert d["total"] == round(items[0]["unit_price"] * 2, 2)
+        assert d["items"][0]["product_id"] == items[0]["product_id"]
+        assert d["items"][0]["quantity"] == 2
+        assert d["items"][0]["unit_price"] >= 0
+        assert d["subtotal"] == round(d["items"][0]["unit_price"] * 2, 2)
+        assert d["total"] == d["subtotal"]
 
     def test_empty_items_400(self):
         r = requests.post(f"{API}/orders", json={
@@ -257,9 +301,118 @@ class TestOrders:
     def test_invalid_payment_422(self):
         r = requests.post(f"{API}/orders", json={
             "customer_name": "G", "customer_phone": "11", "customer_address": "x",
-            "payment_method": "boleto", "items": [{"product_id": "a", "name": "b", "quantity": 1, "unit_price": 1.0}]
+            "payment_method": "boleto", "items": [{"product_id": "a", "quantity": 1}]
         })
         assert r.status_code == 422
+
+    def test_order_ignores_price_tampering(self, s):
+        product = s.get(f"{API}/products").json()[0]
+        expected_unit_price = (
+            product["promo_price"]
+            if product.get("promo_active") and product.get("promo_price") is not None
+            else product["price"]
+        )
+        r = requests.post(f"{API}/orders", json={
+            "customer_name": "Tamper",
+            "customer_phone": "1199",
+            "customer_address": "Rua C, 3",
+            "payment_method": "pix",
+            "subtotal": 0.02,
+            "total": 0.02,
+            "items": [{
+                "product_id": product["id"],
+                "quantity": 2,
+                "price": 0.01,
+                "unit_price": 0.01,
+                "subtotal": 0.02,
+                "total": 0.02,
+            }],
+        })
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["items"][0]["unit_price"] == expected_unit_price
+        assert d["subtotal"] == round(expected_unit_price * 2, 2)
+        assert d["total"] == d["subtotal"]
+
+    def test_negative_quantity_422(self, s):
+        product = s.get(f"{API}/products").json()[0]
+        r = requests.post(f"{API}/orders", json={
+            "customer_name": "Bad Qty",
+            "customer_phone": "1199",
+            "customer_address": "Rua Q, 1",
+            "payment_method": "pix",
+            "items": [{"product_id": product["id"], "quantity": -1}],
+        })
+        assert r.status_code == 422
+
+    def test_nonexistent_product_400(self):
+        r = requests.post(f"{API}/orders", json={
+            "customer_name": "Missing Product",
+            "customer_phone": "1199",
+            "customer_address": "Rua M, 1",
+            "payment_method": "pix",
+            "items": [{"product_id": str(uuid.uuid4()), "quantity": 1}],
+        })
+        assert r.status_code == 400
+        assert "produto" in r.json().get("detail", "").lower()
+
+    def test_unavailable_product_400(self, admin_headers):
+        cat = self._create_test_category(admin_headers)
+        prod = self._create_test_product(admin_headers, cat["id"], available=False)
+        try:
+            r = requests.post(f"{API}/orders", json={
+                "customer_name": "Unavailable",
+                "customer_phone": "1199",
+                "customer_address": "Rua U, 1",
+                "payment_method": "pix",
+                "items": [{"product_id": prod["id"], "quantity": 1}],
+            })
+            assert r.status_code == 400
+            assert "indispon" in r.json().get("detail", "").lower()
+        finally:
+            self._delete_test_product_and_category(admin_headers, prod["id"], cat["id"])
+
+    def test_order_uses_active_promo_price(self, admin_headers):
+        cat = self._create_test_category(admin_headers)
+        prod = self._create_test_product(
+            admin_headers, cat["id"], price=100.0, promo_active=True, promo_price=75.0
+        )
+        try:
+            r = requests.post(f"{API}/orders", json={
+                "customer_name": "Promo",
+                "customer_phone": "1199",
+                "customer_address": "Rua P, 1",
+                "payment_method": "pix",
+                "items": [{"product_id": prod["id"], "quantity": 2}],
+            })
+            assert r.status_code == 200, r.text
+            d = r.json()
+            assert d["items"][0]["unit_price"] == 75.0
+            assert d["subtotal"] == 150.0
+            assert d["total"] == 150.0
+        finally:
+            self._delete_test_product_and_category(admin_headers, prod["id"], cat["id"])
+
+    def test_order_without_promo_uses_regular_price(self, admin_headers):
+        cat = self._create_test_category(admin_headers)
+        prod = self._create_test_product(
+            admin_headers, cat["id"], price=100.0, promo_active=False, promo_price=50.0
+        )
+        try:
+            r = requests.post(f"{API}/orders", json={
+                "customer_name": "No Promo",
+                "customer_phone": "1199",
+                "customer_address": "Rua N, 1",
+                "payment_method": "pix",
+                "items": [{"product_id": prod["id"], "quantity": 2}],
+            })
+            assert r.status_code == 200, r.text
+            d = r.json()
+            assert d["items"][0]["unit_price"] == 100.0
+            assert d["subtotal"] == 200.0
+            assert d["total"] == 200.0
+        finally:
+            self._delete_test_product_and_category(admin_headers, prod["id"], cat["id"])
 
     def test_my_orders_isolation(self, s, customer_headers, customer):
         items = self._sample_items(s)

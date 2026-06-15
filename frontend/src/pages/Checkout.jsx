@@ -121,9 +121,7 @@ export default function Checkout() {
         delivery_area_id: form.delivery_area_id || null,
         items: items.map((i) => ({
           product_id: i.product_id,
-          name: i.name,
           quantity: i.quantity,
-          unit_price: i.unit_price,
         })),
         observations: form.observations,
       };

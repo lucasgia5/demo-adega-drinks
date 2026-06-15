@@ -188,19 +188,55 @@ class TestAdminDeliveryAreasCRUD:
 
 # ---------------- Orders + delivery area ----------------
 class TestOrdersWithDeliveryArea:
-    def _items(self, prod, qty=1, unit_price=None):
+    def _items(self, prod, qty=1):
         return [{
             "product_id": prod["id"],
-            "name": prod["name"],
             "quantity": qty,
-            "unit_price": unit_price if unit_price is not None else prod["price"],
         }]
+
+    def _effective_price(self, prod):
+        if prod.get("promo_active") and prod.get("promo_price") is not None:
+            return float(prod["promo_price"])
+        return float(prod["price"])
+
+    def _qty_for_min_order(self, prod, min_order):
+        price = self._effective_price(prod)
+        return max(1, int(float(min_order) // price) + 1)
+
+    def _create_test_category(self, admin_headers):
+        name = f"TEST_area_order_cat_{uuid.uuid4().hex[:6]}"
+        r = requests.post(
+            f"{API}/categories",
+            json={"name": name, "description": "delivery area order"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def _create_test_product(self, admin_headers, category_id, price):
+        r = requests.post(
+            f"{API}/products",
+            json={
+                "name": f"TEST_area_order_prod_{uuid.uuid4().hex[:6]}",
+                "description": "delivery area order",
+                "image_url": "https://x.test/area-order.jpg",
+                "price": price,
+                "category_id": category_id,
+                "available": True,
+                "promo_active": False,
+                "promo_price": None,
+            },
+            headers=admin_headers,
+        )
+        assert r.status_code == 200, r.text
+        return r.json()
 
     def test_order_with_valid_area_computes_total(self, s, first_product):
         # Use Jardins (fee 12, min 50)
         areas = s.get(f"{API}/delivery-areas").json()
         jardins = next(a for a in areas if a["name"] == "Jardins")
-        items = self._items(first_product, qty=1, unit_price=80.0)  # subtotal 80 > min 50
+        qty = self._qty_for_min_order(first_product, jardins["min_order"])
+        items = self._items(first_product, qty=qty)
         r = requests.post(f"{API}/orders", json={
             "customer_name": "Test",
             "customer_phone": "11999990000",
@@ -215,8 +251,9 @@ class TestOrdersWithDeliveryArea:
         assert d["delivery_area_id"] == jardins["id"]
         assert d["delivery_area_name"] == "Jardins"
         assert d["delivery_fee"] == 12.0
-        assert d["subtotal"] == 80.0
-        assert d["total"] == 80.0 + 12.0
+        expected_subtotal = round(self._effective_price(first_product) * qty, 2)
+        assert d["subtotal"] == expected_subtotal
+        assert d["total"] == expected_subtotal + 12.0
 
     def test_order_with_inactive_area_400(self, admin_headers, first_product):
         # Create inactive area
@@ -228,7 +265,7 @@ class TestOrdersWithDeliveryArea:
         aid = ra.json()["id"]
         _created_ids.append(aid)
 
-        items = self._items(first_product, qty=1, unit_price=100.0)
+        items = self._items(first_product, qty=1)
         r = requests.post(f"{API}/orders", json={
             "customer_name": "Test",
             "customer_phone": "11999990000",
@@ -241,7 +278,7 @@ class TestOrdersWithDeliveryArea:
         assert "indisponível" in r.json().get("detail", "").lower() or "indispon" in r.json().get("detail", "").lower()
 
     def test_order_with_nonexistent_area_400(self, first_product):
-        items = self._items(first_product, qty=1, unit_price=50.0)
+        items = self._items(first_product, qty=1)
         r = requests.post(f"{API}/orders", json={
             "customer_name": "Test",
             "customer_phone": "11999990000",
@@ -257,7 +294,7 @@ class TestOrdersWithDeliveryArea:
         # Moema fee 18, min 80
         areas = s.get(f"{API}/delivery-areas").json()
         moema = next(a for a in areas if a["name"] == "Moema")
-        items = self._items(first_product, qty=1, unit_price=10.0)  # subtotal 10 < 80
+        items = self._items(first_product, qty=1)
         r = requests.post(f"{API}/orders", json={
             "customer_name": "Test",
             "customer_phone": "11999990000",
@@ -272,7 +309,7 @@ class TestOrdersWithDeliveryArea:
         assert "Moema" in detail
 
     def test_order_without_area_backward_compat(self, first_product):
-        items = self._items(first_product, qty=2, unit_price=25.0)
+        items = self._items(first_product, qty=2)
         r = requests.post(f"{API}/orders", json={
             "customer_name": "Test",
             "customer_phone": "11999990000",
@@ -285,5 +322,6 @@ class TestOrdersWithDeliveryArea:
         assert d.get("delivery_area_id") in (None, "")
         assert d.get("delivery_area_name", "") == ""
         assert d["delivery_fee"] == 0
-        assert d["subtotal"] == 50.0
-        assert d["total"] == 50.0
+        expected_subtotal = round(self._effective_price(first_product) * 2, 2)
+        assert d["subtotal"] == expected_subtotal
+        assert d["total"] == expected_subtotal

@@ -464,12 +464,12 @@ Resposta de sucesso (login/register):
   "delivery_area_id": "<uuid|null>",
   "observations": "deixar com porteiro",
   "items": [
-    { "product_id": "<uuid>", "name": "Malbec", "quantity": 2, "unit_price": 72.5 }
+    { "product_id": "<uuid>", "quantity": 2 }
   ]
 }
 ```
 
-O backend calcula: `subtotal = sum(unit_price * qty)`, `total = subtotal + delivery_fee`. Status inicial = `"recebido"`.
+O frontend envia somente `product_id` e `quantity`. O backend ignora qualquer campo de preco enviado pelo cliente (`price`, `unit_price`, `subtotal`, `total`), busca cada produto no MongoDB, valida disponibilidade e valores nao negativos, escolhe `promo_price` quando `promo_active=true` e houver preco promocional, calcula `unit_price`, `subtotal`, `delivery_fee` e `total`, e salva no pedido apenas os valores calculados no servidor. Status inicial = `"recebido"`.
 
 `OrderStatusIn`: `{ "status": "recebido"|"em_preparo"|"saiu_entrega"|"entregue"|"cancelado" }`
 
@@ -629,7 +629,7 @@ Exemplo:
 | `customer_phone` | string | |
 | `customer_address` | string | |
 | `payment_method` | string | `pix` / `dinheiro` / `cartao` |
-| `items` | array<object> | `{ product_id, name, quantity, unit_price }` |
+| `items` | array<object> | Snapshot calculado pelo backend: `{ product_id, name, quantity, unit_price }` |
 | `observations` | string | |
 | `subtotal` | float | soma dos itens |
 | `delivery_area_id` | string \| null | FK lógica para `delivery_areas.id` |
@@ -815,17 +815,20 @@ Não pode:
 
 ## 9. Fluxo Completo do Pedido
 
+Seguranca de precos no checkout: o carrinho pode manter valores para exibicao, mas o `POST /api/orders` envia somente `product_id` e `quantity`. O backend busca os produtos no MongoDB, ignora qualquer `price`, `unit_price`, `subtotal` ou `total` enviado pelo cliente, valida disponibilidade e valores nao negativos, e calcula todos os valores financeiros antes de salvar o pedido.
+
 1. **Cliente abre `/`** → frontend chama `/api/config`, `/api/categories`, `/api/products`. Renderiza hero, chips, grid.
 2. **Filtra/pesquisa** → filtragem em memória (sem novo request).
 3. **Clica em um produto** → `/produto/:id` → carrega detalhe e permite escolher quantidade.
-4. **"Adicionar ao carrinho"** → `CartContext.add(product, qty)` calcula `unit_price` efetivo (`promo_price` se ativo, senão `price`) e persiste no `localStorage`. Abre o `CartDrawer`.
+4. **"Adicionar ao carrinho"** → `CartContext.add(product, qty)` guarda dados de exibição do carrinho no `localStorage`; preço no carrinho é apenas UI, não fonte de verdade para o pedido. Abre o `CartDrawer`.
 5. **Carrinho** → cliente ajusta quantidades / remove itens. Total recalculado em tempo real.
 6. **"Finalizar"** → navega para `/checkout`. Frontend chama `/api/delivery-areas` para popular as opções de bairro.
 7. **Cliente preenche** nome, telefone, endereço, **bairro/região**, observações e seleciona forma de pagamento. Se selecionar bairro abaixo do mínimo, vê warning e botão fica desabilitado.
 8. **"Confirmar e enviar via WhatsApp"** → `POST /api/orders`. Backend:
    - Lê token opcional (para popular `user_id`).
-   - Valida itens, área, mínimo.
-   - Salva documento com `status="recebido"`, `subtotal`, `delivery_fee`, `total`.
+   - Valida itens, área, mínimo e disponibilidade dos produtos.
+   - Busca produtos no MongoDB e calcula `unit_price`, `subtotal`, `delivery_fee` e `total` exclusivamente no backend.
+   - Salva documento com `status="recebido"`, itens precificados pelo backend, `subtotal`, `delivery_fee`, `total`.
    - Retorna o pedido completo.
 9. **Frontend** constrói mensagem:
    ```
@@ -1074,11 +1077,9 @@ sudo supervisorctl status
 
 ### P1 — Alta prioridade (segurança / integridade)
 
-1. **Calcular `unit_price` no backend** a partir de `products.id` em vez de confiar no payload do cliente. Hoje, um cliente malicioso pode enviar `unit_price=0.01` e burlar o `min_order`.
-2. **Validar `fee >= 0` e `min_order >= 0`** em `DeliveryAreaIn` (Pydantic `Field(ge=0)`).
-3. **Restringir CORS** ao domínio real do frontend (não `https?://.*`).
-4. **Endpoint de refresh** (`POST /api/auth/refresh`) — o refresh token já é emitido, falta consumi-lo.
-5. **Upload de imagens** (Cloudinary, S3 ou Emergent object storage) em vez de URL externa — UX muito melhor para o admin.
+1. **Restringir CORS** ao domínio real do frontend (não `https?://.*`).
+2. **Endpoint de refresh** (`POST /api/auth/refresh`) — o refresh token já é emitido, falta consumi-lo.
+3. **Upload de imagens** (Cloudinary, S3 ou Emergent object storage) em vez de URL externa — UX muito melhor para o admin.
 
 ### P2 — Média prioridade (funcionalidade)
 

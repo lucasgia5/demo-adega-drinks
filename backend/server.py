@@ -170,11 +170,11 @@ class ProductIn(BaseModel):
     name: str
     description: Optional[str] = ""
     image_url: str = ""
-    price: float
+    price: float = Field(ge=0)
     category_id: str
     available: bool = True
     promo_active: bool = False
-    promo_price: Optional[float] = None
+    promo_price: Optional[float] = Field(default=None, ge=0)
 
 
 class Product(ProductIn):
@@ -182,17 +182,20 @@ class Product(ProductIn):
     created_at: str
 
 
-class OrderItem(BaseModel):
+class OrderItemIn(BaseModel):
     product_id: str
+    quantity: int = Field(ge=1)
+
+
+class OrderItem(OrderItemIn):
     name: str
-    quantity: int
-    unit_price: float  # actual price charged (promo or regular)
+    unit_price: float = Field(ge=0)  # actual price charged (promo or regular)
 
 
 class DeliveryAreaIn(BaseModel):
     name: str
-    fee: float = 0.0
-    min_order: Optional[float] = None
+    fee: float = Field(default=0.0, ge=0)
+    min_order: Optional[float] = Field(default=None, ge=0)
     active: bool = True
 
 
@@ -206,7 +209,7 @@ class OrderIn(BaseModel):
     customer_phone: str
     customer_address: str
     payment_method: Literal["pix", "dinheiro", "cartao"]
-    items: List[OrderItem]
+    items: List[OrderItemIn]
     observations: Optional[str] = ""
     delivery_area_id: Optional[str] = None
 
@@ -398,6 +401,40 @@ def compute_subtotal(items: List[OrderItem]) -> float:
     return round(sum(i.unit_price * i.quantity for i in items), 2)
 
 
+def resolve_product_price(product: dict) -> float:
+    price = float(product.get("price", 0))
+    if price < 0:
+        raise HTTPException(status_code=400, detail="Produto com preco invalido")
+
+    promo_price = product.get("promo_price")
+    if promo_price is not None and float(promo_price) < 0:
+        raise HTTPException(status_code=400, detail="Produto com preco promocional invalido")
+
+    if product.get("promo_active", False) and promo_price is not None:
+        return round(float(promo_price), 2)
+    return round(price, 2)
+
+
+async def build_priced_order_items(items: List[OrderItemIn]) -> List[OrderItem]:
+    priced_items: List[OrderItem] = []
+    for item in items:
+        product = await db.products.find_one({"id": item.product_id}, {"_id": 0})
+        if not product:
+            raise HTTPException(status_code=400, detail="Produto nao encontrado")
+        if not product.get("available", True):
+            raise HTTPException(status_code=400, detail="Produto indisponivel")
+
+        priced_items.append(
+            OrderItem(
+                product_id=product["id"],
+                name=product.get("name", ""),
+                quantity=item.quantity,
+                unit_price=resolve_product_price(product),
+            )
+        )
+    return priced_items
+
+
 @api_router.post("/orders")
 async def create_order(payload: OrderIn, request: Request):
     user_id: Optional[str] = None
@@ -416,6 +453,8 @@ async def create_order(payload: OrderIn, request: Request):
     if not payload.items:
         raise HTTPException(status_code=400, detail="Carrinho vazio")
 
+    priced_items = await build_priced_order_items(payload.items)
+
     # Resolve delivery area
     delivery_area_id = None
     delivery_area_name = ""
@@ -428,11 +467,17 @@ async def create_order(payload: OrderIn, request: Request):
             raise HTTPException(status_code=400, detail="Área de entrega inválida")
         if not area.get("active", True):
             raise HTTPException(status_code=400, detail="Área de entrega indisponível")
+        area_fee = float(area.get("fee", 0) or 0)
+        if area_fee < 0:
+            raise HTTPException(status_code=400, detail="Taxa de entrega invalida")
+        min_order_value = area.get("min_order")
+        if min_order_value is not None and float(min_order_value) < 0:
+            raise HTTPException(status_code=400, detail="Pedido minimo invalido")
         delivery_area_id = area["id"]
         delivery_area_name = area["name"]
-        delivery_fee = float(area.get("fee", 0) or 0)
+        delivery_fee = area_fee
 
-    subtotal = compute_subtotal(payload.items)
+    subtotal = compute_subtotal(priced_items)
 
     # Enforce min_order if defined
     if payload.delivery_area_id:
@@ -451,7 +496,7 @@ async def create_order(payload: OrderIn, request: Request):
         "customer_phone": payload.customer_phone.strip(),
         "customer_address": payload.customer_address.strip(),
         "payment_method": payload.payment_method,
-        "items": [i.model_dump() for i in payload.items],
+        "items": [i.model_dump() for i in priced_items],
         "observations": payload.observations or "",
         "subtotal": subtotal,
         "delivery_area_id": delivery_area_id,
