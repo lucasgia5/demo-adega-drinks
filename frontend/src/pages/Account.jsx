@@ -69,9 +69,28 @@ export default function Account() {
                   </div>
                 ))}
               </div>
-              <div className="flex justify-between items-center mt-4 pt-3 border-t border-stone-100">
-                <span className="text-stone-500 text-sm">Total</span>
-                <span className="font-serif text-xl font-semibold text-brand">{brl(o.total)}</span>
+              {o.delivery_area_name && (
+                <p className="text-xs text-stone-500 mt-3">
+                  Entrega em <span className="font-medium text-stone-700">{o.delivery_area_name}</span>
+                </p>
+              )}
+              <div className="mt-3 pt-3 border-t border-stone-100 space-y-1 text-sm">
+                {o.subtotal != null && (
+                  <div className="flex justify-between text-stone-600">
+                    <span>Subtotal</span>
+                    <span>{brl(o.subtotal)}</span>
+                  </div>
+                )}
+                {o.delivery_fee != null && (
+                  <div className="flex justify-between text-stone-600">
+                    <span>Taxa de entrega</span>
+                    <span>{brl(o.delivery_fee)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-1">
+                  <span className="text-stone-500">Total</span>
+                  <span className="font-serif text-xl font-semibold text-brand">{brl(o.total)}</span>
+                </div>
               </div>
             </div>
           ))}

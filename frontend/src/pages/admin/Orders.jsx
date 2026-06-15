@@ -90,6 +90,11 @@ export default function Orders() {
                     <div>
                       <p className="text-xs uppercase tracking-wider text-stone-500 mb-1">Endereço</p>
                       <p className="flex items-start gap-1.5"><MapPin className="h-3.5 w-3.5 mt-0.5" /> {o.customer_address}</p>
+                      {o.delivery_area_name && (
+                        <p className="text-xs text-stone-500 mt-0.5 ml-5">
+                          Região: <span className="font-medium text-stone-700">{o.delivery_area_name}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -101,6 +106,18 @@ export default function Orders() {
                           <span className="font-medium">{brl(i.unit_price * i.quantity)}</span>
                         </div>
                       ))}
+                      {o.subtotal != null && (
+                        <div className="flex justify-between p-3 text-sm text-stone-600">
+                          <span>Subtotal</span>
+                          <span>{brl(o.subtotal)}</span>
+                        </div>
+                      )}
+                      {o.delivery_fee != null && (
+                        <div className="flex justify-between p-3 text-sm text-stone-600">
+                          <span>Taxa de entrega{o.delivery_area_name ? ` (${o.delivery_area_name})` : ""}</span>
+                          <span>{brl(o.delivery_fee)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between p-3 text-sm bg-white">
                         <span className="text-stone-600">Total</span>
                         <span className="font-serif text-lg font-semibold text-brand">{brl(o.total)}</span>

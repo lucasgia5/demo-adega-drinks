@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -10,6 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { ArrowLeft, Copy } from "lucide-react";
 
@@ -20,27 +23,43 @@ const PAYMENT_LABELS = {
 };
 
 export default function Checkout() {
-  const { items, total, clear } = useCart();
+  const { items, total: subtotal, clear } = useCart();
   const { user } = useAuth();
   const { config } = useStoreConfig();
   const navigate = useNavigate();
 
+  const [areas, setAreas] = useState([]);
   const [form, setForm] = useState({
     name: user?.name || "",
     phone: user?.phone || "",
     address: "",
+    delivery_area_id: "",
     payment: "pix",
     observations: "",
   });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (items.length === 0) {
-      // allow user to see empty state but redirect after a tick
-    }
-  }, [items.length]);
+    (async () => {
+      try {
+        const { data } = await api.get("/delivery-areas");
+        setAreas(data);
+      } catch {
+        setAreas([]);
+      }
+    })();
+  }, []);
 
   const onChange = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const selectedArea = useMemo(
+    () => areas.find((a) => a.id === form.delivery_area_id) || null,
+    [areas, form.delivery_area_id]
+  );
+  const deliveryFee = selectedArea ? Number(selectedArea.fee || 0) : 0;
+  const total = subtotal + deliveryFee;
+  const belowMin =
+    selectedArea && selectedArea.min_order != null && subtotal < Number(selectedArea.min_order);
 
   const formatWhatsAppMessage = (order) => {
     const lines = [];
@@ -48,6 +67,9 @@ export default function Checkout() {
     lines.push("");
     lines.push(`*Cliente:* ${order.customer_name}`);
     lines.push(`*Telefone:* ${order.customer_phone}`);
+    if (order.delivery_area_name) {
+      lines.push(`*Bairro/Região:* ${order.delivery_area_name}`);
+    }
     lines.push(`*Endereço:* ${order.customer_address}`);
     lines.push("");
     lines.push(`*Itens:*`);
@@ -55,6 +77,8 @@ export default function Checkout() {
       lines.push(`• ${i.quantity}x ${i.name} — ${brl(i.unit_price * i.quantity)}`);
     });
     lines.push("");
+    lines.push(`*Subtotal:* ${brl(order.subtotal ?? subtotal)}`);
+    lines.push(`*Taxa de entrega:* ${brl(order.delivery_fee ?? 0)}`);
     lines.push(`*Total:* ${brl(order.total)}`);
     lines.push(`*Pagamento:* ${PAYMENT_LABELS[order.payment_method] || order.payment_method}`);
     if (order.payment_method === "pix" && config?.pix_key) {
@@ -79,6 +103,14 @@ export default function Checkout() {
       toast.error("Preencha nome, telefone e endereço");
       return;
     }
+    if (areas.length > 0 && !form.delivery_area_id) {
+      toast.error("Selecione o bairro/região de entrega");
+      return;
+    }
+    if (belowMin) {
+      toast.error(`Pedido mínimo para ${selectedArea.name} é ${brl(selectedArea.min_order)}`);
+      return;
+    }
     setSubmitting(true);
     try {
       const payload = {
@@ -86,6 +118,7 @@ export default function Checkout() {
         customer_phone: form.phone,
         customer_address: form.address,
         payment_method: form.payment,
+        delivery_area_id: form.delivery_area_id || null,
         items: items.map((i) => ({
           product_id: i.product_id,
           name: i.name,
@@ -155,6 +188,36 @@ export default function Checkout() {
                   />
                 </div>
                 <div className="sm:col-span-2">
+                  <Label>Bairro / Região de entrega</Label>
+                  {areas.length === 0 ? (
+                    <p className="text-sm text-stone-500 mt-1">
+                      Nenhuma região cadastrada. A entrega seguirá sem taxa.
+                    </p>
+                  ) : (
+                    <Select
+                      value={form.delivery_area_id}
+                      onValueChange={(v) => onChange("delivery_area_id", v)}
+                    >
+                      <SelectTrigger data-testid="checkout-area">
+                        <SelectValue placeholder="Selecione seu bairro/região" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {areas.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.name} — Taxa {brl(a.fee)}
+                            {a.min_order != null ? ` · mín. ${brl(a.min_order)}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {belowMin && (
+                    <p className="text-xs text-red-600 mt-2" data-testid="min-order-warning">
+                      Pedido mínimo para {selectedArea?.name}: {brl(selectedArea?.min_order)}. Adicione mais itens.
+                    </p>
+                  )}
+                </div>
+                <div className="sm:col-span-2">
                   <Label htmlFor="obs">Observações (opcional)</Label>
                   <Textarea
                     id="obs" data-testid="checkout-obs"
@@ -211,7 +274,7 @@ export default function Checkout() {
           <aside className="lg:col-span-1">
             <div className="bg-white rounded-2xl border border-stone-200 p-6 sticky top-20">
               <h2 className="font-serif text-xl font-semibold mb-4">Resumo</h2>
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-1" data-testid="checkout-items">
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1" data-testid="checkout-items">
                 {items.length === 0 && (
                   <p className="text-sm text-stone-500">Seu carrinho está vazio.</p>
                 )}
@@ -222,15 +285,27 @@ export default function Checkout() {
                   </div>
                 ))}
               </div>
-              <div className="border-t border-stone-100 mt-4 pt-4 flex items-center justify-between">
-                <span className="text-stone-600">Total</span>
-                <span className="font-serif text-2xl font-semibold text-brand" data-testid="checkout-total">
-                  {brl(total)}
-                </span>
+              <div className="border-t border-stone-100 mt-4 pt-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-stone-600">Subtotal</span>
+                  <span className="font-medium" data-testid="checkout-subtotal">{brl(subtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-stone-600">Taxa de entrega {selectedArea ? `(${selectedArea.name})` : ""}</span>
+                  <span className="font-medium" data-testid="checkout-delivery-fee">
+                    {selectedArea ? brl(deliveryFee) : "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-stone-100">
+                  <span className="text-stone-600">Total</span>
+                  <span className="font-serif text-2xl font-semibold text-brand" data-testid="checkout-total">
+                    {brl(total)}
+                  </span>
+                </div>
               </div>
               <Button
                 type="submit"
-                disabled={submitting || items.length === 0}
+                disabled={submitting || items.length === 0 || belowMin}
                 data-testid="confirm-order-btn"
                 className="w-full mt-4 h-12 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium"
               >

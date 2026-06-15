@@ -16,6 +16,7 @@ import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminProducts from "@/pages/admin/Products";
 import AdminCategories from "@/pages/admin/Categories";
 import AdminOrders from "@/pages/admin/Orders";
+import AdminDeliveryAreas from "@/pages/admin/DeliveryAreas";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 function App() {
@@ -47,6 +48,9 @@ function App() {
                 } />
                 <Route path="/admin/pedidos" element={
                   <ProtectedRoute requireAdmin><AdminOrders /></ProtectedRoute>
+                } />
+                <Route path="/admin/areas" element={
+                  <ProtectedRoute requireAdmin><AdminDeliveryAreas /></ProtectedRoute>
                 } />
               </Routes>
               <Toaster position="top-right" richColors />

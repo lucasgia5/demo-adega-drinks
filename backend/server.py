@@ -189,6 +189,18 @@ class OrderItem(BaseModel):
     unit_price: float  # actual price charged (promo or regular)
 
 
+class DeliveryAreaIn(BaseModel):
+    name: str
+    fee: float = 0.0
+    min_order: Optional[float] = None
+    active: bool = True
+
+
+class DeliveryArea(DeliveryAreaIn):
+    id: str
+    created_at: str
+
+
 class OrderIn(BaseModel):
     customer_name: str
     customer_phone: str
@@ -196,6 +208,7 @@ class OrderIn(BaseModel):
     payment_method: Literal["pix", "dinheiro", "cartao"]
     items: List[OrderItem]
     observations: Optional[str] = ""
+    delivery_area_id: Optional[str] = None
 
 
 class Order(BaseModel):
@@ -381,7 +394,7 @@ async def delete_product(prod_id: str, _: dict = Depends(require_admin)):
 # ---------------------------------------------------------------------------
 # Orders
 # ---------------------------------------------------------------------------
-def compute_total(items: List[OrderItem]) -> float:
+def compute_subtotal(items: List[OrderItem]) -> float:
     return round(sum(i.unit_price * i.quantity for i in items), 2)
 
 
@@ -403,6 +416,35 @@ async def create_order(payload: OrderIn, request: Request):
     if not payload.items:
         raise HTTPException(status_code=400, detail="Carrinho vazio")
 
+    # Resolve delivery area
+    delivery_area_id = None
+    delivery_area_name = ""
+    delivery_fee = 0.0
+    if payload.delivery_area_id:
+        area = await db.delivery_areas.find_one(
+            {"id": payload.delivery_area_id}, {"_id": 0}
+        )
+        if not area:
+            raise HTTPException(status_code=400, detail="Área de entrega inválida")
+        if not area.get("active", True):
+            raise HTTPException(status_code=400, detail="Área de entrega indisponível")
+        delivery_area_id = area["id"]
+        delivery_area_name = area["name"]
+        delivery_fee = float(area.get("fee", 0) or 0)
+
+    subtotal = compute_subtotal(payload.items)
+
+    # Enforce min_order if defined
+    if payload.delivery_area_id:
+        min_order = area.get("min_order")
+        if min_order is not None and subtotal < float(min_order):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Pedido mínimo para {delivery_area_name} é R$ {float(min_order):.2f}",
+            )
+
+    total = round(subtotal + delivery_fee, 2)
+
     doc = {
         "id": str(uuid.uuid4()),
         "customer_name": payload.customer_name.strip(),
@@ -411,7 +453,11 @@ async def create_order(payload: OrderIn, request: Request):
         "payment_method": payload.payment_method,
         "items": [i.model_dump() for i in payload.items],
         "observations": payload.observations or "",
-        "total": compute_total(payload.items),
+        "subtotal": subtotal,
+        "delivery_area_id": delivery_area_id,
+        "delivery_area_name": delivery_area_name,
+        "delivery_fee": delivery_fee,
+        "total": total,
         "status": "recebido",
         "user_id": user_id,
         "created_at": iso(now_utc()),
@@ -440,6 +486,60 @@ async def update_order_status(order_id: str, payload: OrderStatusIn, _: dict = D
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
     doc = await db.orders.find_one({"id": order_id}, {"_id": 0})
     return doc
+
+
+# ---------------------------------------------------------------------------
+# Delivery Areas
+# ---------------------------------------------------------------------------
+@api_router.get("/delivery-areas")
+async def list_active_delivery_areas():
+    """Public endpoint - returns only active areas for the storefront/checkout."""
+    docs = await db.delivery_areas.find({"active": True}, {"_id": 0}).sort("name", 1).to_list(500)
+    return docs
+
+
+@api_router.get("/admin/delivery-areas")
+async def list_all_delivery_areas(_: dict = Depends(require_admin)):
+    docs = await db.delivery_areas.find({}, {"_id": 0}).sort("name", 1).to_list(500)
+    return docs
+
+
+@api_router.post("/admin/delivery-areas")
+async def create_delivery_area(payload: DeliveryAreaIn, _: dict = Depends(require_admin)):
+    doc = {
+        "id": str(uuid.uuid4()),
+        "name": payload.name.strip(),
+        "fee": float(payload.fee or 0),
+        "min_order": float(payload.min_order) if payload.min_order is not None else None,
+        "active": bool(payload.active),
+        "created_at": iso(now_utc()),
+    }
+    await db.delivery_areas.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.put("/admin/delivery-areas/{area_id}")
+async def update_delivery_area(area_id: str, payload: DeliveryAreaIn, _: dict = Depends(require_admin)):
+    update = {
+        "name": payload.name.strip(),
+        "fee": float(payload.fee or 0),
+        "min_order": float(payload.min_order) if payload.min_order is not None else None,
+        "active": bool(payload.active),
+    }
+    res = await db.delivery_areas.update_one({"id": area_id}, {"$set": update})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Área não encontrada")
+    doc = await db.delivery_areas.find_one({"id": area_id}, {"_id": 0})
+    return doc
+
+
+@api_router.delete("/admin/delivery-areas/{area_id}")
+async def delete_delivery_area(area_id: str, _: dict = Depends(require_admin)):
+    res = await db.delivery_areas.delete_one({"id": area_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Área não encontrada")
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -476,6 +576,7 @@ async def on_startup():
     await db.users.create_index("email", unique=True)
     await db.products.create_index("category_id")
     await db.orders.create_index("created_at")
+    await db.delivery_areas.create_index("name")
 
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@adega.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
@@ -499,6 +600,26 @@ async def on_startup():
                 {"$set": {"password_hash": hash_password(admin_password), "role": "admin"}},
             )
             logger.info("Admin password updated")
+
+    # Seed sample delivery areas only if empty
+    if await db.delivery_areas.count_documents({}) == 0:
+        seed_areas = [
+            {"name": "Centro", "fee": 8.0, "min_order": 0, "active": True},
+            {"name": "Jardins", "fee": 12.0, "min_order": 50, "active": True},
+            {"name": "Vila Madalena", "fee": 15.0, "min_order": 60, "active": True},
+            {"name": "Pinheiros", "fee": 14.0, "min_order": 50, "active": True},
+            {"name": "Moema", "fee": 18.0, "min_order": 80, "active": True},
+        ]
+        for a in seed_areas:
+            await db.delivery_areas.insert_one({
+                "id": str(uuid.uuid4()),
+                "name": a["name"],
+                "fee": a["fee"],
+                "min_order": a["min_order"] if a["min_order"] else None,
+                "active": a["active"],
+                "created_at": iso(now_utc()),
+            })
+        logger.info("Seeded sample delivery areas")
 
     # Seed sample categories/products only if empty
     if await db.categories.count_documents({}) == 0:
