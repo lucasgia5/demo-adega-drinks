@@ -1,0 +1,146 @@
+{
+  "theme_strategy": {
+    "domain": "E-commerce & Delivery (Food/Beverage - Adega/Wine Cellar)",
+    "theme": "Light",
+    "archetype": "1 (Organic & Earthy)",
+    "vibe": "Approachable yet premium, warm, grounded, and tactile. Evokes the feeling of physical wine labels, cork, and deep wine hues.",
+    "white_label_customization": "System must be structured to easily swap primary colors, logo, and banner images to adapt to different stores while maintaining the core structural layout."
+  },
+  "typography": {
+    "heading_font": "Cormorant Garamond",
+    "body_font": "Outfit",
+    "import_instruction": "Import via Google Fonts: <link href=\"https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap\" rel=\"stylesheet\">",
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-serif font-bold tracking-tight text-primary-900 leading-tight",
+      "h2": "text-2xl sm:text-3xl font-serif font-semibold tracking-tight text-primary-900",
+      "h3": "text-xl font-serif font-medium text-primary-800",
+      "body": "text-base font-sans text-stone-700 leading-relaxed",
+      "small_label": "text-xs font-sans uppercase tracking-[0.2em] text-stone-500 font-semibold",
+      "price_active": "text-lg font-sans font-semibold text-primary-900",
+      "price_strikethrough": "text-sm font-sans text-stone-400 line-through decoration-red-500/50"
+    }
+  },
+  "color_palette": {
+    "background": {
+      "main": "#F9F8F6",
+      "surface": "#FFFFFF",
+      "glass": "bg-white/80 backdrop-blur-xl"
+    },
+    "brand": {
+      "primary": "#722F37",
+      "primary_hover": "#5A252C",
+      "secondary": "#C89F53",
+      "accent": "#2E6F40"
+    },
+    "text": {
+      "primary": "#1A1A1A",
+      "secondary": "#5C5C5C",
+      "muted": "#8A8A8A",
+      "inverse": "#FFFFFF"
+    },
+    "borders": {
+      "subtle": "border-stone-200",
+      "active": "border-[#722F37]/30"
+    },
+    "status": {
+      "success": "#2E6F40",
+      "warning": "#C89F53",
+      "error": "#D32F2F",
+      "info": "#4A6E82"
+    }
+  },
+  "spacing_and_layout": {
+    "global_padding": "px-4 sm:px-6 lg:px-8",
+    "section_spacing": "py-12 sm:py-16 lg:py-24",
+    "container": "max-w-7xl mx-auto",
+    "border_radius": {
+      "card": "rounded-2xl",
+      "button": "rounded-xl",
+      "badge": "rounded-full",
+      "input": "rounded-xl"
+    },
+    "shadows": {
+      "soft": "shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]",
+      "floating": "shadow-[0_12px_32px_-8px_rgba(114,47,55,0.15)]",
+      "header": "shadow-[0_2px_10px_-2px_rgba(0,0,0,0.05)]"
+    },
+    "storefront_grid": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6",
+    "admin_dashboard_grid": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"
+  },
+  "components": {
+    "product_card": {
+      "layout": "Vertical stack, pure white background, subtle stone border, no heavy shadow unless hovered.",
+      "image_container": "Aspect ratio 4/5 or square. Image centered with subtle background tint (e.g., bg-stone-50) to make the bottle stand out.",
+      "content": "p-4. Title left-aligned. Category overline above title. Price block bottom left. Add-to-cart button (icon only or small text) bottom right.",
+      "promo_state": "If on promotion: highlight old price crossed out, new price in primary brand color. Add 'Promo' badge absolute top-left.",
+      "hover_state": "-translate-y-1 transition-transform duration-300, floating shadow, image slight scale up."
+    },
+    "header_nav": {
+      "desktop": "Sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-stone-200. Left: Logo. Center: Search bar. Right: Cart icon + Login/Profile.",
+      "mobile": "Sticky top-0. Hamburger menu, central logo, right cart icon."
+    },
+    "search_bar": {
+      "style": "bg-stone-100 border-transparent focus:border-[#722F37] focus:ring-2 focus:ring-[#722F37]/20 rounded-xl px-4 py-2 w-full transition-all"
+    },
+    "cart_drawer": {
+      "layout": "Fixed right side. Off-white background.",
+      "header": "Title 'Seu Carrinho' + close button.",
+      "items": "List of small horizontal bento-style cards. Image left, details center, qty toggle right.",
+      "footer": "Total price + 'Finalizar Pedido' primary CTA button sticking to bottom. WhatsApp icon next to 'Finalizar' to indicate the action."
+    },
+    "admin_sidebar": {
+      "layout": "Fixed left sidebar on desktop. Dark charcoal (bg-stone-900) or very dark red (bg-[#2A1114]) for clear contrast against the light dashboard content.",
+      "links": "Subtle hover states. Active state gets a left border highlight and lighter background."
+    },
+    "admin_data_table": {
+      "style": "Clean white cards. Border collapse, horizontal dividers (border-stone-100). Status badges with soft backgrounds (e.g., bg-green-100 text-green-800 for 'Entregue')."
+    },
+    "buttons": {
+      "primary": "bg-[#722F37] text-white hover:bg-[#5A252C] transition-colors rounded-xl px-6 py-3 font-medium flex items-center justify-center gap-2",
+      "secondary": "bg-stone-100 text-stone-800 hover:bg-stone-200 transition-colors rounded-xl px-6 py-3 font-medium",
+      "outline": "border-2 border-[#722F37] text-[#722F37] hover:bg-[#722F37] hover:text-white transition-colors rounded-xl px-6 py-3 font-medium"
+    }
+  },
+  "animations": {
+    "hover": "transition-all duration-300 ease-out",
+    "drawer": "slide-in from right. Framer motion recommended if available, else CSS transform translate-x.",
+    "page_load": "staggered fade-in-up for product grids."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "Stroke width 1.5, clean, un-filled unless representing an active state (like a filled heart)."
+  },
+  "accessibility": {
+    "contrast": "Ensure primary text on main background meets 4.5:1. Primary button text (white on #722F37) meets contrast.",
+    "focus": "All interactive elements must have focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2",
+    "testing": "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., `data-testid=\"add-to-cart-btn\"`)"
+  },
+  "image_urls": {
+    "hero_banner": {
+      "url": "https://images.unsplash.com/photo-1578911373434-0cb395d2cbfb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHw0fHx3aW5lJTIwY2VsbGFyJTIwc3RvcmUlMjBpbnRlcmlvcnxlbnwwfHx8fDE3ODE1MzM0OTF8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Wine bottles on a rustic rack. Use as the main storefront banner background with a dark overlay (bg-black/40) to make the white store name text pop."
+    },
+    "product_placeholder_1": {
+      "url": "https://images.unsplash.com/photo-1695048475597-08d65f119252?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHw0fHx3aW5lJTIwYm90dGxlJTIwcHJlbWl1bXxlbnwwfHx8fDE3ODE1MzM0OTF8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Premium wine bottle on dark background. Use for main product images in the catalog."
+    },
+    "product_placeholder_2": {
+      "url": "https://images.unsplash.com/photo-1695048475751-5d3b5077d631?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwzfHx3aW5lJTIwYm90dGxlJTIwcHJlbWl1bXxlbnwwfHx8fDE3ODE1MzM0OTF8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Bottle of wine on a table. Alternate product image."
+    },
+    "category_delivery": {
+      "url": "https://images.unsplash.com/photo-1561715276-a2d087060f1d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwxfHx3aW5lJTIwZGVsaXZlcnklMjBiYWd8ZW58MHx8fHwxNzgxNTMzNDkxfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Delivery bag visual. Can be used in the checkout success modal or 'about delivery' section."
+    }
+  },
+  "instructions_to_main_agent": [
+    "1. Setup Tailwind config with the custom colors defined in color_palette. Extend the font family with 'sans': ['Outfit', 'sans-serif'] and 'serif': ['Cormorant Garamond', 'serif'].",
+    "2. Storefront MUST follow a mobile-first e-commerce pattern (e.g. iFood/Rappi): clear product cards with an \"Add\" button directly on the card to minimize clicks.",
+    "3. Implement the Promo state precisely: cross out the old price in a subtle gray/red line and highlight the new price in the bold primary color (#722F37). Add a 'Promo' tag.",
+    "4. For checkout, since it requires a WhatsApp message, structure the flow to collect: Name, Phone, Address, Payment Method, and Observations. Generate the encoded wa.me/ URL dynamically based on cart contents and these details.",
+    "5. The Admin dashboard should be structurally separated. Use a clean dense layout (Archetype 4 style grid) for orders and product management to maximize data visibility.",
+    "6. USE SHADCN components for complex interactions: Dialogs, Selects, and Toasts (Sonner).",
+    "7. CRITICAL: Add `data-testid` to all buttons, inputs, and major containers to allow testing.",
+    "8. DO NOT use placeholder text or mock URLs for images. Use the Unsplash URLs provided in `image_urls` for seeding the database or initial static render."
+  ]
+}
