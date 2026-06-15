@@ -42,8 +42,7 @@ export default function Header({ search, setSearch }) {
               data-testid="search-input"
               placeholder="Buscar vinhos, cervejas, destilados..."
               value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
-              onBlur={() => setSearch?.(localSearch)}
+              onChange={(e) => { setLocalSearch(e.target.value); setSearch?.(e.target.value); }}
               className="pl-9 rounded-xl border-stone-200 bg-stone-50 focus-visible:ring-brand/30"
             />
           </div>
@@ -116,8 +115,7 @@ export default function Header({ search, setSearch }) {
                 data-testid="search-input-mobile"
                 placeholder="Buscar..."
                 value={localSearch}
-                onChange={(e) => setLocalSearch(e.target.value)}
-                onBlur={() => setSearch?.(localSearch)}
+                onChange={(e) => { setLocalSearch(e.target.value); setSearch?.(e.target.value); }}
                 className="pl-9 rounded-xl border-stone-200 bg-stone-50"
               />
             </div>
