@@ -36,6 +36,15 @@ Stack: React + Tailwind, FastAPI, MongoDB, JWT. Genérico, mas uma loja por inst
 - ✅ Tema bordô + dourado, fontes Cormorant Garamond + Outfit.
 - ✅ Backend testes pytest 23/23, fluxos frontend E2E principais validados.
 
+### Iteração 2 (2026-02)
+- ✅ **Áreas de entrega** — coleção `delivery_areas` com nome, taxa, pedido mínimo opcional, ativo/inativo.
+- ✅ Admin `/admin/areas` com CRUD completo + toggle de ativação inline.
+- ✅ Checkout com Select de bairro/região; cálculo de subtotal + taxa + total ao vivo no Resumo; valida pedido mínimo e bloqueia Confirmar quando abaixo.
+- ✅ Mensagem WhatsApp inclui Bairro/Região, Subtotal, Taxa de entrega e Total final.
+- ✅ Admin Orders e Account exibem Região, Subtotal, Taxa e Total separados.
+- ✅ Backward compatible: pedidos antigos (sem os novos campos) renderizam normalmente.
+- ✅ Testes: 37/37 pytest (23 regressão + 14 novos) + frontend E2E 100%.
+
 ## Backlog
 ### P0 (próximo finish)
 - Nenhum bug bloqueante pendente.
