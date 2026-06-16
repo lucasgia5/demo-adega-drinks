@@ -96,7 +96,8 @@ Coleções: `users`, `categories`, `products`, `orders`, `delivery_areas`.
 /app/
 ├── backend/
 │   ├── server.py              # Aplicação FastAPI completa (auth, CRUD, orders, stats)
-│   ├── store_config.py        # White-label config (nome, cores, WhatsApp, Pix, banner)
+│   ├── store_config.py        # White-label config (nome, logo, cores, WhatsApp, Pix, banner, domínio)
+│   ├── seed_config.py         # Seeds white-label de categorias e produtos
 │   ├── requirements.txt       # Dependências Python
 │   └── .env                   # Variáveis de ambiente do backend
 │
@@ -271,7 +272,7 @@ Mesmo fluxo + opção de visitar `/conta` com histórico.
 | Estado | Onde mora | Persistência |
 |---|---|---|
 | Usuário autenticado | `AuthContext` | `localStorage.auth_token` + cookie httpOnly |
-| Carrinho | `CartContext` | `localStorage.adega_cart` (JSON) |
+| Carrinho | `CartContext` | `localStorage.white_label_cart` (JSON) |
 | Config white-label | `StoreConfigContext` | Em memória (carregado de `/api/config` no boot) |
 | Catálogo, pedidos, etc. | Estado local de cada página (`useState`) | Não persistido (refetch ao montar) |
 
@@ -842,18 +843,18 @@ Segurança de preços no checkout: o carrinho pode manter valores para exibiçã
    - Retorna o pedido completo.
 9. **Frontend** constrói mensagem:
    ```
-   *Novo Pedido — Adega do Vinho*
+   *Novo Pedido - <nome da loja configurada>*
    *Cliente:* João
    *Telefone:* 11999...
    *Bairro/Região:* Jardins
    *Endereço:* Rua X, 100
    *Itens:*
-   • 2x Malbec — R$ 145,00
+   - 2x Produto - R$ 145,00
    *Subtotal:* R$ 145,00
    *Taxa de entrega:* R$ 12,00
    *Total:* R$ 157,00
-   *Pagamento:* Pix para a adega
-   *Chave Pix (E-mail):* contato@adegadovinho.com.br
+   *Pagamento:* Pix
+   *Chave Pix (E-mail):* <pix configurado>
    *Observações:* tocar interfone
    Pedido #A1B2C3D4
    ```
@@ -865,46 +866,47 @@ Segurança de preços no checkout: o carrinho pode manter valores para exibiçã
 
 ## 10. Configurações White Label
 
-### 10.1. Onde
+O guia operacional completo fica em `WHITE_LABEL_REBRANDING.md`.
 
-`backend/store_config.py`. É um único `dict` chamado `STORE_CONFIG`. É exposto via `GET /api/config` (público).
+### 10.1. Arquivos centrais
 
-### 10.2. Campos
+| Arquivo | Responsabilidade |
+|---|---|
+| `backend/store_config.py` | Nome, logo, cores, banner, WhatsApp, Pix, endereço, domínio público e textos públicos da loja |
+| `backend/seed_config.py` | Categorias seed e produtos seed |
+| `frontend/src/whiteLabelDefaults.js` | Fallback visual do frontend quando `/api/config` não responde |
+| `frontend/src/index.css` | Variáveis CSS/HSL base e fallback visual |
+| `frontend/tailwind.config.js` | Tokens Tailwind `brand` ligados às variáveis aplicadas por `StoreConfigContext` |
+| `.env` de produção | Domínios e credenciais admin (`FRONTEND_URL`, `REACT_APP_BACKEND_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`) |
 
-| Campo | Tipo | Onde aparece |
-|---|---|---|
-| `name` | string | Header, hero, mensagem WhatsApp, sidebar admin, `<title>` |
-| `tagline` | string | Pequena chamada acima do nome no hero |
-| `logo_url` | string | Reservado (hoje renderizamos o nome em texto se vazio) |
-| `primary_color` | string (hex) | Cor da marca (também presente como `brand` no Tailwind) |
-| `secondary_color` | string (hex) | Acento dourado |
-| `whatsapp_number` | string | Número usado no `wa.me/` (só dígitos, com país + DDD) |
-| `address` | string | Exibido no hero |
-| `pix_key` | string | Mostrada no checkout quando pagamento = Pix |
-| `pix_key_type` | string | Rótulo (E-mail, CNPJ, Celular...) |
-| `banner_url` | string | Imagem do hero |
-| `currency_symbol` | string | Reservado (hoje usamos `Intl` pt-BR) |
-| `currency_code` | string | Reservado |
-| `delivery_note` | string | Texto pequeno no hero (ex: "Entrega em até 60min") |
+### 10.2. Campos de `STORE_CONFIG`
 
-### 10.3. Como personalizar para uma nova adega
+| Campo | Onde aparece |
+|---|---|
+| `name` | Header, hero, mensagem WhatsApp e sidebar admin |
+| `tagline` | Chamada do hero |
+| `logo_url` | Header e sidebar admin; se vazio, renderiza nome em texto |
+| `primary_color` | Config pública da marca |
+| `secondary_color` | Config pública da marca |
+| `whatsapp_number` | Link `wa.me` do checkout |
+| `address` | Hero |
+| `pix_key` | Checkout quando pagamento = Pix |
+| `pix_key_type` | Rótulo da chave Pix |
+| `banner_url` | Imagem do hero |
+| `public_domain` | Domínio público da loja |
+| `currency_symbol` / `currency_code` | Config de moeda |
+| `delivery_note` | Texto curto do hero |
 
-1. Edite `backend/store_config.py` com os novos valores.
-2. Para mudar a cor principal **visualmente**: além de `STORE_CONFIG.primary_color`, editar:
-   - `frontend/tailwind.config.js` → `colors.brand` (`DEFAULT`, `dark`, `gold`)
-   - `frontend/src/index.css` → variáveis CSS `--primary` (HSL)
-3. Para mudar a **fonte**:
-   - `frontend/public/index.html` → `<link>` do Google Fonts
-   - `frontend/tailwind.config.js` → `fontFamily.sans` / `fontFamily.serif`
-4. Logo (imagem): hoje renderizamos o nome em texto. Para usar imagem:
-   - Preencher `STORE_CONFIG.logo_url`.
-   - Em `frontend/src/components/Header.jsx`, ajustar o link do logo para renderizar `<img src={config.logo_url}/>` quando existir.
-5. Banner: trocar `STORE_CONFIG.banner_url` (URL pública de imagem).
-6. WhatsApp: trocar `whatsapp_number` (formato internacional sem `+`, ex: `5511999990000`).
-7. Pix: trocar `pix_key` e `pix_key_type`.
-8. Reiniciar backend (`sudo supervisorctl restart backend`) para o `/api/config` refletir.
+### 10.3. Rebranding para loja de quadros
 
-> 💡 Próxima evolução natural: **mover o `STORE_CONFIG` para uma coleção `store_settings` no Mongo** e expor uma tela "Configurações" no admin. Hoje, por requisito do problema, isso fica fora do alcance do admin.
+Para criar uma loja de quadros:
+
+1. Edite `backend/store_config.py` com nome, logo, cores, banner, WhatsApp, Pix e domínio.
+2. Edite `backend/seed_config.py` com categorias como "Quadros Abstratos", "Paisagens", "Minimalistas" e produtos com imagens de quadros.
+3. As cores `primary_color` e `secondary_color` são aplicadas automaticamente no frontend; ajuste `frontend/src/index.css` e `frontend/tailwind.config.js` apenas para tons de fundo, fontes ou fallback visual.
+4. Edite `frontend/src/whiteLabelDefaults.js` para um fallback genérico da nova loja.
+5. Configure `FRONTEND_URL`, `REACT_APP_BACKEND_URL`, `ADMIN_EMAIL` e `ADMIN_PASSWORD` no ambiente de produção.
+6. Faça o primeiro startup com banco vazio para aplicar os seeds novos.
 
 ---
 

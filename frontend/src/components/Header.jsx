@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useStoreConfig } from "@/context/StoreConfigContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { STORE_CONFIG_FALLBACK } from "@/whiteLabelDefaults";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel,
@@ -30,9 +31,13 @@ export default function Header({ search, setSearch }) {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center gap-3 sm:gap-6">
         <Link to="/" className="flex items-center gap-2 shrink-0" data-testid="logo-link">
-          <span className="font-serif text-xl sm:text-2xl font-semibold text-brand">
-            {config?.name || "Adega"}
-          </span>
+          {config?.logo_url ? (
+            <img src={config.logo_url} alt={config?.name || STORE_CONFIG_FALLBACK.name} className="h-9 w-auto" />
+          ) : (
+            <span className="font-serif text-xl sm:text-2xl font-semibold text-brand">
+              {config?.name || STORE_CONFIG_FALLBACK.name}
+            </span>
+          )}
         </Link>
 
         <form onSubmit={onSubmit} className="flex-1 hidden md:block">
@@ -40,7 +45,7 @@ export default function Header({ search, setSearch }) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
             <Input
               data-testid="search-input"
-              placeholder="Buscar vinhos, cervejas, destilados..."
+              placeholder={config?.search_placeholder || STORE_CONFIG_FALLBACK.search_placeholder}
               value={localSearch}
               onChange={(e) => { setLocalSearch(e.target.value); setSearch?.(e.target.value); }}
               className="pl-9 rounded-xl border-stone-200 bg-stone-50 focus-visible:ring-brand/30"

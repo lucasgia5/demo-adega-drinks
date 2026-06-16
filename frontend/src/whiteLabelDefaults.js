@@ -1,0 +1,16 @@
+export const STORE_CONFIG_FALLBACK = {
+  name: "Loja White Label",
+  primary_color: "#722F37",
+  secondary_color: "#C89F53",
+  whatsapp_number: "",
+  banner_url: "",
+  logo_url: "",
+  tagline: "",
+  search_placeholder: "Buscar produtos...",
+  address: "",
+  pix_key: "",
+  pix_key_type: "",
+  delivery_note: "",
+  checkout_note: "Seu pedido será aberto no WhatsApp da loja já preenchido.",
+  public_domain: "",
+};

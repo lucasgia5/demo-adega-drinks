@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import ProductCard from "@/components/ProductCard";
 import CartDrawer from "@/components/CartDrawer";
 import { useStoreConfig } from "@/context/StoreConfigContext";
+import { STORE_CONFIG_FALLBACK } from "@/whiteLabelDefaults";
 import { MapPin, Truck } from "lucide-react";
 
 export default function Storefront() {
@@ -58,7 +59,7 @@ export default function Storefront() {
             {config?.tagline || "Bem-vindo"}
           </p>
           <h1 className="font-serif text-white text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mt-2 text-balance">
-            {config?.name || "Adega"}
+            {config?.name || STORE_CONFIG_FALLBACK.name}
           </h1>
           <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-white/90 text-sm">
             {config?.address && (

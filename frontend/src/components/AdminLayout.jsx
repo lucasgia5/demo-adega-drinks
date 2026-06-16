@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Package, Tag, ClipboardList, LogOut, Store, Truck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useStoreConfig } from "@/context/StoreConfigContext";
+import { STORE_CONFIG_FALLBACK } from "@/whiteLabelDefaults";
 
 const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -30,7 +31,13 @@ export default function AdminLayout({ title, children, actions }) {
       >
         <div className="px-6 py-6 border-b border-white/10">
           <p className="text-[10px] uppercase tracking-[0.3em] text-stone-400">Painel</p>
-          <p className="font-serif text-2xl font-semibold mt-1">{config?.name || "Adega"}</p>
+          {config?.logo_url ? (
+            <img src={config.logo_url} alt={config?.name || STORE_CONFIG_FALLBACK.name} className="mt-2 h-10 w-auto" />
+          ) : (
+            <p className="font-serif text-2xl font-semibold mt-1">
+              {config?.name || STORE_CONFIG_FALLBACK.name}
+            </p>
+          )}
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {NAV.map(({ to, label, icon: Icon }) => {

@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 
+from seed_config import SEED_CATEGORIES, SEED_PRODUCTS
 from store_config import STORE_CONFIG
 
 # ---------------------------------------------------------------------------
@@ -123,7 +124,7 @@ mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
-app = FastAPI(title="Adega Delivery API")
+app = FastAPI(title=f"{STORE_CONFIG['name']} API")
 api_router = APIRouter(prefix="/api")
 
 
@@ -845,15 +846,8 @@ async def on_startup():
 
     # Seed sample categories/products only if empty
     if await db.categories.count_documents({}) == 0:
-        seed_cats = [
-            {"name": "Vinhos Tintos", "icon": "wine"},
-            {"name": "Vinhos Brancos", "icon": "wine"},
-            {"name": "Espumantes", "icon": "wine"},
-            {"name": "Cervejas Especiais", "icon": "beer"},
-            {"name": "Destilados", "icon": "glass"},
-        ]
         cat_ids = {}
-        for c in seed_cats:
+        for c in SEED_CATEGORIES:
             cid = str(uuid.uuid4())
             await db.categories.insert_one({
                 "id": cid, "name": c["name"], "description": "",
@@ -861,32 +855,17 @@ async def on_startup():
             })
             cat_ids[c["name"]] = cid
 
-        sample_img_1 = "https://images.unsplash.com/photo-1695048475597-08d65f119252?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHw0fHx3aW5lJTIwYm90dGxlJTIwcHJlbWl1bXxlbnwwfHx8fDE3ODE1MzM0OTF8MA&ixlib=rb-4.1.0&q=85"
-        sample_img_2 = "https://images.unsplash.com/photo-1695048475751-5d3b5077d631?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwzfHx3aW5lJTIwYm90dGxlJTIwcHJlbWl1bXxlbnwwfHx8fDE3ODE1MzM0OTF8MA&ixlib=rb-4.1.0&q=85"
-
-        seed_products = [
-            ("Cabernet Sauvignon Reserva", "Vinho tinto encorpado com notas de carvalho e frutas vermelhas.", "Vinhos Tintos", 89.90, True, 64.90, sample_img_1),
-            ("Malbec Argentino", "Tinto argentino, ideal para carnes vermelhas.", "Vinhos Tintos", 72.50, False, None, sample_img_2),
-            ("Merlot Chileno", "Suave, redondo e com final aveludado.", "Vinhos Tintos", 59.00, False, None, sample_img_1),
-            ("Chardonnay Sur Lie", "Branco amanteigado com toque de baunilha.", "Vinhos Brancos", 68.00, True, 49.90, sample_img_2),
-            ("Sauvignon Blanc", "Refrescante, cítrico e mineral.", "Vinhos Brancos", 54.00, False, None, sample_img_1),
-            ("Prosecco Italiano", "Espumante leve e festivo.", "Espumantes", 79.00, True, 59.00, sample_img_2),
-            ("Champagne Brut", "Champagne francês, perlage fina e elegante.", "Espumantes", 320.00, False, None, sample_img_1),
-            ("IPA Artesanal 500ml", "Cerveja IPA com lúpulo cítrico marcante.", "Cervejas Especiais", 24.90, False, None, sample_img_2),
-            ("Stout Imperial", "Cerveja escura, encorpada, com notas de café.", "Cervejas Especiais", 28.90, True, 22.90, sample_img_1),
-            ("Whisky 12 anos", "Single malt envelhecido em barris de carvalho.", "Destilados", 289.00, False, None, sample_img_2),
-            ("Gin London Dry", "Gin clássico com botânicos selecionados.", "Destilados", 159.00, True, 119.00, sample_img_1),
-        ]
-        for name, desc, cat, price, promo, promo_price, img in seed_products:
+        for product in SEED_PRODUCTS:
             await db.products.insert_one({
                 "id": str(uuid.uuid4()),
-                "name": name, "description": desc,
-                "image_url": img,
-                "price": price,
-                "category_id": cat_ids[cat],
+                "name": product["name"],
+                "description": product["description"],
+                "image_url": product["image_url"],
+                "price": product["price"],
+                "category_id": cat_ids[product["category_name"]],
                 "available": True,
-                "promo_active": promo,
-                "promo_price": promo_price,
+                "promo_active": product["promo_active"],
+                "promo_price": product["promo_price"],
                 "created_at": iso(now_utc()),
             })
         logger.info("Seeded sample categories and products")

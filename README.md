@@ -2,6 +2,8 @@
 
 Aplicação white label de delivery/e-commerce com vitrine pública, carrinho, checkout via WhatsApp, painel administrativo, gestão de produtos, categorias, pedidos, áreas de entrega e upload de imagens via Cloudinary.
 
+Para criar uma nova marca, siga o guia [WHITE_LABEL_REBRANDING.md](WHITE_LABEL_REBRANDING.md).
+
 ## Stack
 
 - Frontend: React, CRA/Craco, Tailwind CSS, shadcn/Radix UI, Axios.

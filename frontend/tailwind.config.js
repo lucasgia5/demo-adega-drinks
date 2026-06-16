@@ -51,9 +51,9 @@ module.exports = {
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         brand: {
-          DEFAULT: '#722F37',
-          dark: '#5A252C',
-          gold: '#C89F53',
+          DEFAULT: 'var(--brand-primary, #722F37)',
+          dark: 'var(--brand-primary-dark, #5A252C)',
+          gold: 'var(--brand-secondary, #C89F53)',
           ink: '#1A1A1A',
           cream: '#F9F8F6',
         },

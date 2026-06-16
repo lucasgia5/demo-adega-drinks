@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useStoreConfig } from "@/context/StoreConfigContext";
+import { STORE_CONFIG_FALLBACK } from "@/whiteLabelDefaults";
 import api, { brl, formatApiErrorDetail } from "@/lib/api";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Copy } from "lucide-react";
 
 const PAYMENT_LABELS = {
-  pix: "Pix para a adega",
+  pix: "Pix",
   dinheiro: "Dinheiro na entrega",
   cartao: "Cartão na entrega",
 };
@@ -63,7 +64,7 @@ export default function Checkout() {
 
   const formatWhatsAppMessage = (order) => {
     const lines = [];
-    lines.push(`*Novo Pedido — ${config?.name || "Adega"}*`);
+    lines.push(`*Novo Pedido - ${config?.name || STORE_CONFIG_FALLBACK.name}*`);
     lines.push("");
     lines.push(`*Cliente:* ${order.customer_name}`);
     lines.push(`*Telefone:* ${order.customer_phone}`);
@@ -310,7 +311,7 @@ export default function Checkout() {
                 {submitting ? "Enviando..." : "Confirmar e enviar via WhatsApp"}
               </Button>
               <p className="text-xs text-stone-500 mt-3 text-center">
-                Seu pedido será aberto no WhatsApp da adega já preenchido.
+                {config?.checkout_note || STORE_CONFIG_FALLBACK.checkout_note}
               </p>
             </div>
           </aside>
