@@ -26,7 +26,7 @@ Stack: React + Tailwind, FastAPI, MongoDB, JWT. Genérico, mas uma loja por inst
 
 ## What's been implemented (2026-02)
 - ✅ JWT custom auth (login, register, me, logout) — httpOnly cookies + Authorization Bearer fallback.
-- ✅ Admin seeded on startup (`admin@adega.com` / `admin123`).
+- ✅ Admin seeded on startup using `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 - ✅ 5 categorias + 11 produtos com promoções de exemplo (seed automático na primeira inicialização).
 - ✅ Storefront com hero, filtro por categoria, busca live, cards de produto com badge "Promo" e preço riscado/destacado.
 - ✅ Cart drawer com quantidades, total e persistência.
