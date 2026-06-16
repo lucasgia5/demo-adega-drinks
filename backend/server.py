@@ -9,6 +9,7 @@ import uuid
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
+from urllib.parse import urlparse
 
 import bcrypt
 import jwt
@@ -25,6 +26,73 @@ from store_config import STORE_CONFIG
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_MINUTES = 60 * 24  # 1 day
 REFRESH_TOKEN_DAYS = 7
+LOCAL_FRONTEND_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def current_environment() -> str:
+    return (os.environ.get("APP_ENV") or os.environ.get("ENV") or "development").strip().lower()
+
+
+def is_production() -> bool:
+    return current_environment() in {"production", "prod"}
+
+
+def env_value(name: str) -> str:
+    return os.environ.get(name, "").strip()
+
+
+def require_env(name: str) -> str:
+    value = env_value(name)
+    if not value:
+        raise RuntimeError(f"{name} must be configured")
+    return value
+
+
+def split_frontend_urls(value: str) -> List[str]:
+    return [url.strip().rstrip("/") for url in value.split(",") if url.strip()]
+
+
+def validate_origin(origin: str) -> str:
+    parsed = urlparse(origin)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise RuntimeError(f"Invalid FRONTEND_URL origin: {origin}")
+    return origin.rstrip("/")
+
+
+def get_frontend_origins() -> List[str]:
+    frontend_url = env_value("FRONTEND_URL")
+    if is_production():
+        origins = split_frontend_urls(require_env("FRONTEND_URL"))
+    else:
+        origins = split_frontend_urls(frontend_url) or LOCAL_FRONTEND_ORIGINS
+    validated = [validate_origin(origin) for origin in origins]
+    if is_production() and any(urlparse(origin).scheme != "https" for origin in validated):
+        raise RuntimeError("FRONTEND_URL must use https in production")
+    return validated
+
+
+def get_cookie_settings() -> dict:
+    secure = is_production()
+    return {
+        "httponly": True,
+        "secure": secure,
+        "samesite": "none" if secure else "lax",
+        "path": "/",
+    }
+
+
+def validate_startup_environment() -> None:
+    if is_production():
+        require_env("JWT_SECRET")
+        require_env("ADMIN_EMAIL")
+        require_env("ADMIN_PASSWORD")
+        get_frontend_origins()
+
+
+validate_startup_environment()
 
 mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
@@ -33,12 +101,9 @@ db = client[os.environ["DB_NAME"]]
 app = FastAPI(title="Adega Delivery API")
 api_router = APIRouter(prefix="/api")
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 
 def get_jwt_secret() -> str:
-    return os.environ["JWT_SECRET"]
+    return require_env("JWT_SECRET")
 
 
 def now_utc() -> datetime:
@@ -85,19 +150,35 @@ def create_refresh_token(user_id: str) -> str:
 
 
 def set_auth_cookies(response: Response, access: str, refresh: str) -> None:
+    cookie_settings = get_cookie_settings()
     response.set_cookie(
-        key="access_token", value=access, httponly=True, secure=True,
-        samesite="none", max_age=ACCESS_TOKEN_MINUTES * 60, path="/",
+        key="access_token",
+        value=access,
+        max_age=ACCESS_TOKEN_MINUTES * 60,
+        **cookie_settings,
     )
     response.set_cookie(
-        key="refresh_token", value=refresh, httponly=True, secure=True,
-        samesite="none", max_age=REFRESH_TOKEN_DAYS * 24 * 60 * 60, path="/",
+        key="refresh_token",
+        value=refresh,
+        max_age=REFRESH_TOKEN_DAYS * 24 * 60 * 60,
+        **cookie_settings,
     )
 
 
 def clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
+    cookie_settings = get_cookie_settings()
+    response.delete_cookie(
+        "access_token",
+        path=cookie_settings["path"],
+        secure=cookie_settings["secure"],
+        samesite=cookie_settings["samesite"],
+    )
+    response.delete_cookie(
+        "refresh_token",
+        path=cookie_settings["path"],
+        secure=cookie_settings["secure"],
+        samesite=cookie_settings["samesite"],
+    )
 
 
 async def get_current_user(request: Request) -> dict:
@@ -272,6 +353,30 @@ async def login(payload: LoginIn, response: Response):
     set_auth_cookies(response, access, refresh)
     user.pop("password_hash", None)
     user.pop("_id", None)
+    return {"user": user, "access_token": access}
+
+
+@api_router.post("/auth/refresh")
+async def refresh_session(request: Request, response: Response):
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="Refresh token ausente")
+    try:
+        payload = jwt.decode(refresh_token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Token invÃ¡lido")
+        user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="UsuÃ¡rio nÃ£o encontrado")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expirado")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Refresh token invÃ¡lido")
+
+    access = create_access_token(user["id"], user["email"], user["role"])
+    new_refresh = create_refresh_token(user["id"])
+    set_auth_cookies(response, access, new_refresh)
+    user.pop("password_hash", None)
     return {"user": user, "access_token": access}
 
 
@@ -623,10 +728,19 @@ async def on_startup():
     await db.orders.create_index("created_at")
     await db.delivery_areas.create_index("name")
 
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@adega.com").lower()
-    admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
-    existing = await db.users.find_one({"email": admin_email})
-    if not existing:
+    admin_email = env_value("ADMIN_EMAIL").lower()
+    admin_password = env_value("ADMIN_PASSWORD")
+    if not admin_email or not admin_password:
+        if is_production():
+            raise RuntimeError("ADMIN_EMAIL and ADMIN_PASSWORD must be configured")
+        logger.warning("Skipping admin seed because ADMIN_EMAIL or ADMIN_PASSWORD is not configured")
+        admin_email = ""
+
+    if not admin_email:
+        existing = None
+    else:
+        existing = await db.users.find_one({"email": admin_email})
+    if admin_email and not existing:
         await db.users.insert_one({
             "id": str(uuid.uuid4()),
             "name": "Administrador",
@@ -638,7 +752,7 @@ async def on_startup():
             "created_at": iso(now_utc()),
         })
         logger.info("Admin user seeded: %s", admin_email)
-    else:
+    elif admin_email:
         if not verify_password(admin_password, existing["password_hash"]):
             await db.users.update_one(
                 {"email": admin_email},
@@ -725,10 +839,9 @@ async def on_shutdown():
 # ---------------------------------------------------------------------------
 app.include_router(api_router)
 
-frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://.*",
+    allow_origins=get_frontend_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

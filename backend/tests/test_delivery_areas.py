@@ -10,7 +10,7 @@ BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://winedelivery-1.previ
 API = f"{BASE_URL}/api"
 
 ADMIN_EMAIL = "admin@adega.com"
-ADMIN_PASSWORD = "admin123"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
 
 
 # ---------------- fixtures ----------------
@@ -23,6 +23,8 @@ def s():
 
 @pytest.fixture(scope="module")
 def admin_headers(s):
+    if not ADMIN_PASSWORD:
+        pytest.skip("ADMIN_PASSWORD must be set to run admin integration tests")
     r = s.post(f"{API}/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD})
     assert r.status_code == 200, f"admin login failed: {r.status_code} {r.text}"
     token = r.json()["access_token"]

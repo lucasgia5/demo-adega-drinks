@@ -59,7 +59,7 @@ O fluxo principal converte um carrinho em uma **mensagem de WhatsApp pré-preenc
 ```
 
 - O frontend faz todas as chamadas através de `REACT_APP_BACKEND_URL` + prefixo `/api`. A rede Kubernetes/Ingress encaminha tudo que começa com `/api` para o backend na porta 8001.
-- Auth: o backend devolve `access_token` (e seta cookies `access_token`/`refresh_token` httpOnly). O frontend persiste o token também em `localStorage` para suportar ambientes onde cookies cross-site são restritos.
+- Auth: o backend devolve `access_token` (e seta cookies `access_token`/`refresh_token` httpOnly). O endpoint `/api/auth/refresh` renova a sessão usando o refresh token. O frontend persiste o token também em `localStorage` para suportar ambientes onde cookies cross-site são restritos.
 - WhatsApp não é uma integração de API — é apenas a abertura do `https://wa.me/<numero>?text=<mensagem>` no navegador do cliente.
 
 ### 1.4. Tecnologias do Frontend
@@ -344,24 +344,24 @@ Lança `403` se `user.role != "admin"`.
 bcrypt com salt aleatório.
 
 #### `create_access_token(user_id, email, role)` / `create_refresh_token(user_id)`
-JWT HS256. Access: 1 dia. Refresh: 7 dias (gerado mas ainda **não usado** num endpoint de refresh — fica como melhoria).
+JWT HS256. Access: 1 dia. Refresh: 7 dias. O refresh token é consumido por `POST /api/auth/refresh`.
 
 #### `set_auth_cookies(response, access, refresh)`
-Seta cookies `httponly=True`, `secure=True`, `samesite="none"`, path `/`.
+Seta cookies `httponly=True`, path `/`. Em produção usa `secure=True` e `samesite="none"` para suportar frontend/backend em origens diferentes com credenciais. Em desenvolvimento local usa `secure=False` e `samesite="lax"`.
 
 ### 4.3. CORS
 
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://.*",
+    allow_origins=get_frontend_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 ```
 
-> ⚠️ **Aviso de segurança**: aceitar qualquer origem com `allow_credentials=True` é amplo. Em produção, restringir para o domínio real (`FRONTEND_URL`). Ver [Melhorias Futuras](#14-melhorias-futuras).
+Em produção, `FRONTEND_URL` é obrigatório, precisa usar HTTPS e define a lista de origens permitidas. O backend não usa `allow_origin_regex` aberto com credenciais. Em desenvolvimento, quando `FRONTEND_URL` não estiver definido, apenas `http://localhost:3000` e `http://127.0.0.1:3000` são permitidos.
 
 ### 4.4. Validações
 
@@ -381,6 +381,7 @@ Todos sob o prefixo `/api`. Tabela rápida:
 |---|---|---|---|
 | POST | `/api/auth/register` | — | Cria cliente. Retorna `{ user, access_token }`. Seta cookies. |
 | POST | `/api/auth/login` | — | Autentica. Retorna `{ user, access_token }`. |
+| POST | `/api/auth/refresh` | Cookie refresh | Renova access/refresh tokens usando cookie `refresh_token`. |
 | POST | `/api/auth/logout` | — | Limpa cookies. |
 | GET | `/api/auth/me` | Bearer | Retorna usuário corrente. |
 
@@ -392,7 +393,7 @@ Erros: `409` se e-mail já existe.
 
 `LoginIn`:
 ```json
-{ "email": "admin@adega.com", "password": "admin123" }
+{ "email": "admin@example.com", "password": "senha-forte-configurada-no-env" }
 ```
 Erros: `401` credenciais inválidas.
 
@@ -717,7 +718,7 @@ Não há foreign keys reais — o app valida no nível de aplicação.
 
 - Algoritmo: **HS256**, segredo em `JWT_SECRET`.
 - Access token payload: `{ sub: user_id, email, role, type:"access", exp }`. Expira em 24h.
-- Refresh token payload: `{ sub: user_id, type:"refresh", exp }`. Expira em 7 dias. *(Atualmente ainda não há endpoint que consuma o refresh — preparado para uma melhoria futura.)*
+- Refresh token payload: `{ sub: user_id, type:"refresh", exp }`. Expira em 7 dias e é consumido por `POST /api/auth/refresh`.
 - `get_current_user` aceita token em cookie **ou** header `Authorization: Bearer ...` (frontend usa ambos).
 
 ### 6.4. Logout (`POST /api/auth/logout`)
@@ -904,15 +905,15 @@ Seguranca de precos no checkout: o carrinho pode manter valores para exibicao, m
 
 | Variável | Obrigatório | Default sugerido | Função |
 |---|---|---|---|
+| `APP_ENV` | recomendado | `development` | Use `production` para ativar validações rígidas de produção |
 | `MONGO_URL` | sim | `mongodb://localhost:27017` | Conexão Mongo |
 | `DB_NAME` | sim | `adega_delivery` | Nome do banco |
-| `JWT_SECRET` | sim | string aleatória 64 chars | Assinatura dos JWTs (HS256) |
-| `ADMIN_EMAIL` | sim | `admin@adega.com` | Email do admin semeado no startup |
-| `ADMIN_PASSWORD` | sim | `admin123` | Senha do admin semeado |
-| `FRONTEND_URL` | recomendado | URL pública do frontend | Usado para CORS / cookies em produção |
-| `CORS_ORIGINS` | opcional | `*` | (Não consumido atualmente — preparado para futuro lockdown) |
+| `JWT_SECRET` | sim em produção | string aleatória 64 chars | Assinatura dos JWTs (HS256); backend não inicia em produção sem valor |
+| `ADMIN_EMAIL` | sim em produção | `admin@example.com` | Email do admin semeado no startup |
+| `ADMIN_PASSWORD` | sim em produção | senha forte única | Senha do admin semeado; não há fallback inseguro |
+| `FRONTEND_URL` | sim em produção | URL HTTPS pública do frontend | Lista de origens permitidas no CORS; aceita múltiplas URLs separadas por vírgula |
 
-> 🔐 **Atenção**: trocar `JWT_SECRET` em produção. Trocar `ADMIN_PASSWORD` no primeiro login. O backend re-hasheia a senha do admin no startup se ela divergir do `.env` — útil para reset, mas **mantenha o `.env` fora de Git**.
+Use `backend/.env.example` como base. Em produção, o backend impede inicialização quando `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` ou `FRONTEND_URL` estiverem ausentes/vazios. O backend re-hasheia a senha do admin no startup se ela divergir do `.env` — útil para reset, mas **mantenha o `.env` fora de Git**.
 
 ### 11.2. Frontend (`frontend/.env`)
 
@@ -1062,9 +1063,10 @@ sudo supervisorctl status
 
 ### 13.6. Publicar em produção (checklist)
 
-- [ ] Trocar `JWT_SECRET` por uma string segura (32+ bytes random).
-- [ ] Trocar `ADMIN_PASSWORD`.
-- [ ] Restringir CORS para o domínio real (editar `server.py`).
+- [ ] Definir `APP_ENV=production`.
+- [ ] Definir `JWT_SECRET` com string segura (32+ bytes random).
+- [ ] Definir `ADMIN_EMAIL` e `ADMIN_PASSWORD` fortes.
+- [ ] Definir `FRONTEND_URL` com o domínio real do frontend.
 - [ ] Habilitar HTTPS em ambos.
 - [ ] Setar `REACT_APP_BACKEND_URL` apontando para o backend de produção.
 - [ ] Configurar backup automático do MongoDB Atlas.
@@ -1077,9 +1079,7 @@ sudo supervisorctl status
 
 ### P1 — Alta prioridade (segurança / integridade)
 
-1. **Restringir CORS** ao domínio real do frontend (não `https?://.*`).
-2. **Endpoint de refresh** (`POST /api/auth/refresh`) — o refresh token já é emitido, falta consumi-lo.
-3. **Upload de imagens** (Cloudinary, S3 ou Emergent object storage) em vez de URL externa — UX muito melhor para o admin.
+1. **Upload de imagens** (Cloudinary, S3 ou Emergent object storage) em vez de URL externa — UX muito melhor para o admin.
 
 ### P2 — Média prioridade (funcionalidade)
 
@@ -1120,7 +1120,7 @@ curl -s $API/api/config | python3 -m json.tool
 # Login admin e listar pedidos
 TOKEN=$(curl -s -X POST $API/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@adega.com","password":"admin123"}' \
+  -d '{"email":"admin@example.com","password":"senha-forte-configurada-no-env"}' \
   | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
 curl -s $API/api/orders -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
 
@@ -1134,7 +1134,7 @@ cd /app && \
 
 Mantidas em `/app/memory/test_credentials.md`:
 
-- **Admin** — `admin@adega.com` / `admin123` (semeado no startup).
+- **Admin** — definido por `ADMIN_EMAIL` / `ADMIN_PASSWORD` no ambiente (semeado no startup).
 - **Cliente de teste** — criar via `POST /api/auth/register`.
 
 ## Apêndice C — Histórico de iterações
