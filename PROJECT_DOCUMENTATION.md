@@ -470,7 +470,7 @@ Resposta de sucesso (login/register):
 }
 ```
 
-O frontend envia somente `product_id` e `quantity`. O backend ignora qualquer campo de preco enviado pelo cliente (`price`, `unit_price`, `subtotal`, `total`), busca cada produto no MongoDB, valida disponibilidade e valores nao negativos, escolhe `promo_price` quando `promo_active=true` e houver preco promocional, calcula `unit_price`, `subtotal`, `delivery_fee` e `total`, e salva no pedido apenas os valores calculados no servidor. Status inicial = `"recebido"`.
+O frontend envia somente `product_id` e `quantity`. O backend ignora qualquer campo de preço enviado pelo cliente (`price`, `unit_price`, `subtotal`, `total`), busca cada produto no MongoDB, valida disponibilidade e valores não negativos, escolhe `promo_price` quando `promo_active=true` e houver preço promocional, calcula `unit_price`, `subtotal`, `delivery_fee` e `total`, e salva no pedido apenas os valores calculados no servidor. Status inicial = `"recebido"`.
 
 `OrderStatusIn`: `{ "status": "recebido"|"em_preparo"|"saiu_entrega"|"entregue"|"cancelado" }`
 
@@ -816,7 +816,7 @@ Não pode:
 
 ## 9. Fluxo Completo do Pedido
 
-Seguranca de precos no checkout: o carrinho pode manter valores para exibicao, mas o `POST /api/orders` envia somente `product_id` e `quantity`. O backend busca os produtos no MongoDB, ignora qualquer `price`, `unit_price`, `subtotal` ou `total` enviado pelo cliente, valida disponibilidade e valores nao negativos, e calcula todos os valores financeiros antes de salvar o pedido.
+Segurança de preços no checkout: o carrinho pode manter valores para exibição, mas o `POST /api/orders` envia somente `product_id` e `quantity`. O backend busca os produtos no MongoDB, ignora qualquer `price`, `unit_price`, `subtotal` ou `total` enviado pelo cliente, valida disponibilidade e valores não negativos, e calcula todos os valores financeiros antes de salvar o pedido.
 
 1. **Cliente abre `/`** → frontend chama `/api/config`, `/api/categories`, `/api/products`. Renderiza hero, chips, grid.
 2. **Filtra/pesquisa** → filtragem em memória (sem novo request).

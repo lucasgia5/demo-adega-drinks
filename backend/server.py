@@ -364,14 +364,14 @@ async def refresh_session(request: Request, response: Response):
     try:
         payload = jwt.decode(refresh_token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
         if payload.get("type") != "refresh":
-            raise HTTPException(status_code=401, detail="Token invÃ¡lido")
+            raise HTTPException(status_code=401, detail="Token inválido")
         user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
         if not user:
-            raise HTTPException(status_code=401, detail="UsuÃ¡rio nÃ£o encontrado")
+            raise HTTPException(status_code=401, detail="Usuário não encontrado")
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Refresh token expirado")
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Refresh token invÃ¡lido")
+        raise HTTPException(status_code=401, detail="Refresh token inválido")
 
     access = create_access_token(user["id"], user["email"], user["role"])
     new_refresh = create_refresh_token(user["id"])
@@ -509,11 +509,11 @@ def compute_subtotal(items: List[OrderItem]) -> float:
 def resolve_product_price(product: dict) -> float:
     price = float(product.get("price", 0))
     if price < 0:
-        raise HTTPException(status_code=400, detail="Produto com preco invalido")
+        raise HTTPException(status_code=400, detail="Produto com preço inválido")
 
     promo_price = product.get("promo_price")
     if promo_price is not None and float(promo_price) < 0:
-        raise HTTPException(status_code=400, detail="Produto com preco promocional invalido")
+        raise HTTPException(status_code=400, detail="Produto com preço promocional inválido")
 
     if product.get("promo_active", False) and promo_price is not None:
         return round(float(promo_price), 2)
@@ -525,9 +525,9 @@ async def build_priced_order_items(items: List[OrderItemIn]) -> List[OrderItem]:
     for item in items:
         product = await db.products.find_one({"id": item.product_id}, {"_id": 0})
         if not product:
-            raise HTTPException(status_code=400, detail="Produto nao encontrado")
+            raise HTTPException(status_code=400, detail="Produto não encontrado")
         if not product.get("available", True):
-            raise HTTPException(status_code=400, detail="Produto indisponivel")
+            raise HTTPException(status_code=400, detail="Produto indisponível")
 
         priced_items.append(
             OrderItem(
@@ -574,10 +574,10 @@ async def create_order(payload: OrderIn, request: Request):
             raise HTTPException(status_code=400, detail="Área de entrega indisponível")
         area_fee = float(area.get("fee", 0) or 0)
         if area_fee < 0:
-            raise HTTPException(status_code=400, detail="Taxa de entrega invalida")
+            raise HTTPException(status_code=400, detail="Taxa de entrega inválida")
         min_order_value = area.get("min_order")
         if min_order_value is not None and float(min_order_value) < 0:
-            raise HTTPException(status_code=400, detail="Pedido minimo invalido")
+            raise HTTPException(status_code=400, detail="Pedido mínimo inválido")
         delivery_area_id = area["id"]
         delivery_area_name = area["name"]
         delivery_fee = area_fee
