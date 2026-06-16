@@ -12,8 +12,10 @@ from typing import List, Optional, Literal
 from urllib.parse import urlparse
 
 import bcrypt
+import cloudinary
+import cloudinary.uploader
 import jwt
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, File, Request, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
@@ -27,6 +29,13 @@ JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_MINUTES = 60 * 24  # 1 day
 REFRESH_TOKEN_DAYS = 7
 LOCAL_FRONTEND_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+MAX_PRODUCT_IMAGE_BYTES = 5 * 1024 * 1024
+ALLOWED_PRODUCT_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+ALLOWED_PRODUCT_IMAGE_CONTENT_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+}
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -90,6 +99,22 @@ def validate_startup_environment() -> None:
         require_env("ADMIN_EMAIL")
         require_env("ADMIN_PASSWORD")
         get_frontend_origins()
+
+
+def validate_cloudinary_environment() -> None:
+    require_env("CLOUDINARY_CLOUD_NAME")
+    require_env("CLOUDINARY_API_KEY")
+    require_env("CLOUDINARY_API_SECRET")
+
+
+def configure_cloudinary() -> None:
+    validate_cloudinary_environment()
+    cloudinary.config(
+        cloud_name=require_env("CLOUDINARY_CLOUD_NAME"),
+        api_key=require_env("CLOUDINARY_API_KEY"),
+        api_secret=require_env("CLOUDINARY_API_SECRET"),
+        secure=True,
+    )
 
 
 validate_startup_environment()
@@ -453,6 +478,38 @@ async def delete_category(cat_id: str, _: dict = Depends(require_admin)):
 # ---------------------------------------------------------------------------
 # Products
 # ---------------------------------------------------------------------------
+def product_image_extension(filename: str) -> str:
+    return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+
+async def upload_product_image_to_cloudinary(file: UploadFile) -> str:
+    extension = product_image_extension(file.filename or "")
+    if extension not in ALLOWED_PRODUCT_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Tipo de arquivo inválido")
+    if file.content_type not in ALLOWED_PRODUCT_IMAGE_CONTENT_TYPES:
+        raise HTTPException(status_code=400, detail="Tipo de arquivo inválido")
+
+    contents = await file.read()
+    if len(contents) > MAX_PRODUCT_IMAGE_BYTES:
+        raise HTTPException(status_code=400, detail="Imagem maior que o limite permitido")
+    if not contents:
+        raise HTTPException(status_code=400, detail="Arquivo vazio")
+
+    configure_cloudinary()
+    result = cloudinary.uploader.upload(
+        contents,
+        folder="ecomm-white-label/products",
+        resource_type="image",
+        use_filename=True,
+        unique_filename=True,
+        overwrite=False,
+    )
+    secure_url = result.get("secure_url")
+    if not secure_url:
+        raise HTTPException(status_code=502, detail="Cloudinary não retornou URL segura")
+    return secure_url
+
+
 @api_router.get("/products")
 async def list_products(category_id: Optional[str] = None, search: Optional[str] = None):
     query: dict = {}
@@ -462,6 +519,12 @@ async def list_products(category_id: Optional[str] = None, search: Optional[str]
         query["name"] = {"$regex": search, "$options": "i"}
     docs = await db.products.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     return docs
+
+
+@api_router.post("/admin/products/upload-image")
+async def upload_product_image(file: UploadFile = File(...), _: dict = Depends(require_admin)):
+    secure_url = await upload_product_image_to_cloudinary(file)
+    return {"image_url": secure_url}
 
 
 @api_router.get("/products/{prod_id}")

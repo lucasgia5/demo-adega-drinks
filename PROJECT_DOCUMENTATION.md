@@ -233,7 +233,7 @@ Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redire
 - `GET /api/admin/stats`. 4 cards (Pedidos, Produtos, Categorias, Receita) + breakdown por status.
 
 #### `admin/Products.jsx`
-- Tabela com produtos. Dialog (modal shadcn) para criar/editar com toggle "Disponível", toggle "Ativar promoção" que revela campo de "Preço promocional".
+- Tabela com produtos. Dialog (modal shadcn) para criar/editar com campo manual de URL de imagem e upload direto para Cloudinary. Ao escolher um arquivo, o frontend chama `POST /api/admin/products/upload-image`, mostra prévia e preenche `image_url` com a URL segura retornada. Também mantém toggle "Disponível" e toggle "Ativar promoção" que revela campo de "Preço promocional".
 
 #### `admin/Categories.jsx`
 - Lista simples com create/edit/delete em dialog. Backend rejeita delete se houver produtos vinculados (HTTP 400).
@@ -428,6 +428,7 @@ Resposta de sucesso (login/register):
 |---|---|---|---|
 | GET | `/api/products?category_id&search` | — | Lista com filtros opcionais. `search` faz regex case-insensitive no nome. |
 | GET | `/api/products/{id}` | — | Detalhe. |
+| POST | `/api/admin/products/upload-image` | Admin | Recebe arquivo `jpg`/`jpeg`/`png`/`webp`, envia ao Cloudinary e retorna `{ "image_url": "https://..." }`. |
 | POST | `/api/products` | Admin | Cria. |
 | PUT | `/api/products/{id}` | Admin | Atualiza. |
 | DELETE | `/api/products/{id}` | Admin | Remove. |
@@ -445,6 +446,12 @@ Resposta de sucesso (login/register):
   "promo_price": 64.90
 }
 ```
+
+Upload de imagem:
+- O endpoint exige admin.
+- O backend valida extensão, content-type e tamanho máximo antes de enviar ao Cloudinary.
+- O MongoDB não salva binário; produtos continuam persistindo apenas `image_url`.
+- O painel admin usa a URL segura retornada pelo Cloudinary para preencher `image_url`.
 
 #### 4.5.5. Orders
 
@@ -595,7 +602,7 @@ Exemplo:
 | `id` | string (UUID) | |
 | `name` | string | |
 | `description` | string | |
-| `image_url` | string | URL externa |
+| `image_url` | string | URL da imagem; quando enviada pelo admin, é a URL segura retornada pelo Cloudinary |
 | `price` | float | preço cheio |
 | `category_id` | string (UUID) | **FK lógica** → `categories.id` |
 | `available` | bool | se aparece para o cliente |
@@ -618,6 +625,8 @@ Exemplo:
   "created_at":"2026-..."
 }
 ```
+
+Imagens de produtos não são salvas como binário no MongoDB. O banco mantém somente `image_url`; o arquivo fica armazenado no Cloudinary.
 
 Índices: `category_id` (para filtros).
 
@@ -912,6 +921,9 @@ Segurança de preços no checkout: o carrinho pode manter valores para exibiçã
 | `ADMIN_EMAIL` | sim em produção | `admin@example.com` | Email do admin semeado no startup |
 | `ADMIN_PASSWORD` | sim em produção | senha forte única | Senha do admin semeado; não há fallback inseguro |
 | `FRONTEND_URL` | sim em produção | URL HTTPS pública do frontend | Lista de origens permitidas no CORS; aceita múltiplas URLs separadas por vírgula |
+| `CLOUDINARY_CLOUD_NAME` | sim para upload | nome do cloud | Cloudinary usado no upload de imagens de produtos |
+| `CLOUDINARY_API_KEY` | sim para upload | chave de API | Cloudinary usado no upload de imagens de produtos |
+| `CLOUDINARY_API_SECRET` | sim para upload | segredo de API | Cloudinary usado no upload de imagens de produtos |
 
 Use `backend/.env.example` como base. Em produção, o backend impede inicialização quando `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` ou `FRONTEND_URL` estiverem ausentes/vazios. O backend re-hasheia a senha do admin no startup se ela divergir do `.env` — útil para reset, mas **mantenha o `.env` fora de Git**.
 
@@ -1079,7 +1091,7 @@ sudo supervisorctl status
 
 ### P1 — Alta prioridade (segurança / integridade)
 
-1. **Upload de imagens** (Cloudinary, S3 ou Emergent object storage) em vez de URL externa — UX muito melhor para o admin.
+1. **Cupom de desconto** (admin cria código → aplicado no checkout).
 
 ### P2 — Média prioridade (funcionalidade)
 

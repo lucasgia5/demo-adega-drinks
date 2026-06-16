@@ -27,6 +27,8 @@ export default function Products() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState("");
 
   const load = async () => {
     const [{ data: ps }, { data: cs }] = await Promise.all([
@@ -41,6 +43,7 @@ export default function Products() {
   const openNew = () => {
     setEditing(null);
     setForm({ ...empty, category_id: cats[0]?.id || "" });
+    setImagePreview("");
     setOpen(true);
   };
   const openEdit = (p) => {
@@ -50,7 +53,31 @@ export default function Products() {
       price: String(p.price), category_id: p.category_id, available: p.available,
       promo_active: p.promo_active, promo_price: p.promo_price != null ? String(p.promo_price) : "",
     });
+    setImagePreview(p.image_url || "");
     setOpen(true);
+  };
+
+  const uploadImage = async (file) => {
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview(previewUrl);
+    setUploadingImage(true);
+    try {
+      const data = new FormData();
+      data.append("file", file);
+      const res = await api.post("/admin/products/upload-image", data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setForm((curr) => ({ ...curr, image_url: res.data.image_url }));
+      setImagePreview(res.data.image_url);
+      toast.success("Imagem enviada");
+    } catch (e) {
+      setImagePreview(form.image_url);
+      toast.error(formatApiErrorDetail(e.response?.data?.detail) || "Erro ao enviar imagem");
+    } finally {
+      URL.revokeObjectURL(previewUrl);
+      setUploadingImage(false);
+    }
   };
 
   const save = async () => {
@@ -182,7 +209,26 @@ export default function Products() {
             </div>
             <div>
               <Label>URL da imagem</Label>
-              <Input data-testid="form-product-image" placeholder="https://..." value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} />
+              <Input data-testid="form-product-image" placeholder="https://..." value={form.image_url} onChange={(e) => {
+                setForm({ ...form, image_url: e.target.value });
+                setImagePreview(e.target.value);
+              }} />
+            </div>
+            <div className="space-y-2">
+              <Label>Upload de imagem</Label>
+              <Input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                data-testid="form-product-image-upload"
+                onChange={(e) => uploadImage(e.target.files?.[0])}
+                disabled={uploadingImage}
+              />
+              {uploadingImage && <p className="text-xs text-stone-500">Enviando imagem...</p>}
+              {imagePreview && (
+                <div className="h-28 w-28 overflow-hidden rounded-xl border border-stone-200 bg-stone-50">
+                  <img src={imagePreview} alt="Prévia do produto" className="h-full w-full object-cover" />
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
