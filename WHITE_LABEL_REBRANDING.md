@@ -3,6 +3,19 @@
 Este projeto foi organizado para rebrandar a loja mexendo em poucos pontos.
 Para criar uma loja de quadros, altere os arquivos e variáveis abaixo antes do primeiro deploy/seed em produção.
 
+## Fluxo Recomendado Para Uma Nova Loja
+
+1. Crie um repositório novo a partir do template `ecomm-white-label`.
+2. Configure `backend/store_config.py` com nome, logo, cores, banner, WhatsApp, Pix e domínio público.
+3. Configure `backend/seed_config.py` com categorias e produtos seed da loja.
+4. Defina um `DB_NAME` próprio para a loja.
+5. Configure Cloudinary. Uma mesma conta pode servir várias lojas, desde que cada loja use uma pasta/prefixo próprio.
+6. Rode localmente backend e frontend.
+7. Valide checkout, mensagem do WhatsApp, upload de imagem e criação/listagem de pedidos.
+8. Faça deploy do backend no Render ou Railway.
+9. Faça deploy do frontend na Vercel.
+10. Atualize `FRONTEND_URL` no backend com a URL final do frontend e redeploye o backend.
+
 ## Arquivos Principais
 
 | O que mudar | Onde mudar |
@@ -158,16 +171,23 @@ ADMIN_PASSWORD=use-uma-senha-forte
 
 Não coloque credenciais reais no Git. O backend semeia/atualiza o admin no startup usando essas variáveis.
 
+Use uma senha forte e única por loja. Se `ADMIN_PASSWORD`, `JWT_SECRET`, `MONGO_URL` ou qualquer segredo Cloudinary aparecer em print, issue, commit, log público ou repositório, rotacione a credencial imediatamente.
+
 ## Checklist Para Nova Loja de Quadros
 
+- [ ] Criar repositório novo a partir do template.
 - [ ] Alterar `backend/store_config.py`.
 - [ ] Alterar `backend/seed_config.py`.
+- [ ] Criar `DB_NAME` próprio por loja.
 - [ ] Alterar cores em `frontend/src/index.css`.
 - [ ] Alterar cores em `frontend/tailwind.config.js`.
 - [ ] Alterar fallback em `frontend/src/whiteLabelDefaults.js`.
+- [ ] Configurar Cloudinary com pasta/prefixo próprio.
 - [ ] Configurar `FRONTEND_URL`.
 - [ ] Configurar `REACT_APP_BACKEND_URL`.
 - [ ] Configurar `ADMIN_EMAIL` e `ADMIN_PASSWORD`.
-- [ ] Configurar Cloudinary e usar URLs reais nos produtos seed.
+- [ ] Validar checkout, WhatsApp, upload e pedidos localmente.
+- [ ] Fazer deploy backend no Render/Railway.
+- [ ] Fazer deploy frontend na Vercel.
 - [ ] Rodar `python -m pytest backend/tests --collect-only -q -p no:cacheprovider`.
 - [ ] Rodar `cd frontend && yarn build`.

@@ -42,7 +42,7 @@ O fluxo principal converte um carrinho em uma **mensagem de WhatsApp pré-preenc
 | Banco | MongoDB |
 | Auth | JWT customizado (PyJWT + bcrypt), via httpOnly cookies + Bearer token |
 | Build/dev | CRA (react-scripts) no frontend, Uvicorn no backend |
-| Process manager | supervisord (no ambiente Emergent) |
+| Deploy backend | Render ou Railway executando Uvicorn |
 
 ### 1.3. Arquitetura geral
 
@@ -84,7 +84,7 @@ O fluxo principal converte um carrinho em uma **mensagem de WhatsApp pré-preenc
 
 ### 1.6. Banco de Dados
 
-**MongoDB**. Nome do banco vem de `DB_NAME` (`adega_delivery` por padrão). Identificadores: usamos **UUID v4 string** em todos os documentos (campo `id`), nunca expomos `_id` ObjectId — o backend faz `find({}, {"_id": 0})` em toda leitura.
+**MongoDB**. Nome do banco vem de `DB_NAME` (`store_white_label` no exemplo; use um nome próprio por loja). Identificadores: usamos **UUID v4 string** em todos os documentos (campo `id`), nunca expomos `_id` ObjectId — o backend faz `find({}, {"_id": 0})` em toda leitura.
 
 Coleções: `users`, `categories`, `products`, `orders`, `delivery_areas`.
 
@@ -538,7 +538,7 @@ backend/app/
 
 ## 5. Banco de Dados
 
-DB: definido por `DB_NAME` (default `adega_delivery`).
+DB: definido por `DB_NAME` (exemplo: `store_white_label`; em produção, use um nome próprio por loja).
 Driver: **Motor (async)**.
 Estratégia de ID: **UUID v4 string** no campo `id`. Nunca retornamos `_id` ObjectId.
 
@@ -918,7 +918,7 @@ Para criar uma loja de quadros:
 |---|---|---|---|
 | `APP_ENV` | recomendado | `development` | Use `production` para ativar validações rígidas de produção |
 | `MONGO_URL` | sim | `mongodb://localhost:27017` | Conexão Mongo |
-| `DB_NAME` | sim | `adega_delivery` | Nome do banco |
+| `DB_NAME` | sim | `store_white_label` | Nome do banco; use um nome próprio por loja |
 | `JWT_SECRET` | sim em produção | string aleatória 64 chars | Assinatura dos JWTs (HS256); backend não inicia em produção sem valor |
 | `ADMIN_EMAIL` | sim em produção | `admin@example.com` | Email do admin semeado no startup |
 | `ADMIN_PASSWORD` | sim em produção | senha forte única | Senha do admin semeado; não há fallback inseguro |
@@ -929,6 +929,13 @@ Para criar uma loja de quadros:
 
 Use `backend/.env.example` como base. Em produção, o backend impede inicialização quando `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` ou `FRONTEND_URL` estiverem ausentes/vazios. O backend re-hasheia a senha do admin no startup se ela divergir do `.env` — útil para reset, mas **mantenha o `.env` fora de Git**.
 
+Segurança de ambiente:
+- `.env` nunca deve ser commitado.
+- `JWT_SECRET` deve ser forte e único por loja.
+- `ADMIN_PASSWORD` deve ser forte e único por loja.
+- `MONGO_URL` e `CLOUDINARY_API_SECRET` nunca devem aparecer no GitHub.
+- Se alguma credencial aparecer em print, issue, commit, log público ou repositório, rotacione imediatamente.
+
 ### 11.2. Frontend (`frontend/.env`)
 
 | Variável | Função |
@@ -936,7 +943,7 @@ Use `backend/.env.example` como base. Em produção, o backend impede inicializa
 | `REACT_APP_BACKEND_URL` | URL pública do backend (base para `axios`). **Não inclua `/api`** — o código adiciona. |
 | `WDS_SOCKET_PORT` | (CRA dev) — geralmente já configurado. |
 
-**Não delete chaves existentes do `.env`** — o ambiente Emergent depende delas. Adicione novas linhas.
+Não coloque valores reais em `.env.example`; ele deve conter apenas placeholders seguros.
 
 ---
 
@@ -958,7 +965,7 @@ PyJWT
 bcrypt
 ```
 
-> Sempre instalar com `pip install <pkg>` e depois `pip freeze > /app/backend/requirements.txt` para manter sincronizado.
+> O `requirements.txt` deve conter apenas dependências instaláveis em ambientes públicos como Render/Railway. Não inclua pacotes exclusivos de ambientes de preview ou fornecedores internos.
 
 ### 12.2. Frontend (`frontend/package.json`)
 
@@ -1009,7 +1016,7 @@ eslint, postcss, autoprefixer
 
 ```bash
 # 1. Clonar
-git clone <repo> adega-delivery && cd adega-delivery
+git clone <repo> nova-loja && cd nova-loja
 
 # 2. Backend
 cd backend
@@ -1025,67 +1032,79 @@ yarn install
 yarn start  # abre em http://localhost:3000
 ```
 
-No ambiente Emergent, ambos os serviços rodam sob `supervisord`:
-
-```bash
-sudo supervisorctl restart backend
-sudo supervisorctl restart frontend
-sudo supervisorctl status
-```
-
 ### 13.2. MongoDB Atlas
 
-1. Criar cluster gratuito em https://cloud.mongodb.com.
-2. Criar usuário do banco. Liberar IP (`0.0.0.0/0` em dev).
-3. Pegar a connection string (`mongodb+srv://<user>:<pwd>@cluster.xxx.mongodb.net/`).
-4. Setar no `.env`:
+1. Criar cluster em https://cloud.mongodb.com.
+2. Criar usuário do banco com senha forte.
+3. Configurar Network Access:
+   - Render Free: liberar `0.0.0.0/0` quando não houver IP fixo.
+   - Produção com IP conhecido: liberar apenas o IP apropriado.
+4. Copiar a connection string exata pelo botão **Connect** do Atlas.
+5. Substituir apenas usuário e senha na connection string.
+6. Setar no `.env` ou no provedor:
    ```
-   MONGO_URL=mongodb+srv://USER:PWD@cluster.xxx.mongodb.net/?retryWrites=true&w=majority
-   DB_NAME=adega_delivery
+   MONGO_URL=mongodb+srv://USER:PASSWORD@cluster.example.mongodb.net/?retryWrites=true&w=majority
+   DB_NAME=nome_da_loja_prod
    ```
-5. Reiniciar o backend. O startup vai criar índices e popular dados de exemplo se as coleções estiverem vazias.
+7. Reiniciar o backend. O startup vai criar índices e popular dados de exemplo se as coleções estiverem vazias.
 
-### 13.3. Backend em Render
+### 13.3. Cloudinary
+
+Uma única conta Cloudinary pode servir várias lojas. Use uma pasta/prefixo próprio por loja para organizar uploads.
+
+As credenciais ficam apenas no `.env` local ou nas variáveis do Render/Railway:
+
+```
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+```
+
+Nunca commite credenciais Cloudinary.
+
+### 13.4. Backend em Render
 
 1. **New +** → **Web Service** → conectar repo.
-2. Root directory: `backend/`.
-3. Build: `pip install -r requirements.txt`.
-4. Start: `uvicorn server:app --host 0.0.0.0 --port $PORT`.
-5. Environment vars: `MONGO_URL`, `DB_NAME`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `FRONTEND_URL`.
-6. Após deploy, anotar a URL (ex: `https://adega-backend.onrender.com`).
+2. Root Directory: `backend`.
+3. Build Command: `pip install -r requirements.txt`.
+4. Start Command: `uvicorn server:app --host 0.0.0.0 --port $PORT`.
+5. Environment vars: `APP_ENV`, `MONGO_URL`, `DB_NAME`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `FRONTEND_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
+6. Após deploy, anotar a URL HTTPS pública do backend.
 
-### 13.4. Backend em Railway
+### 13.5. Backend em Railway
 
 1. **New Project** → **Deploy from GitHub repo**.
-2. Selecionar a pasta `backend/` (ou Railway detecta o `requirements.txt` automaticamente).
-3. Setar Start Command: `uvicorn server:app --host 0.0.0.0 --port $PORT`.
+2. Selecionar a pasta `backend/` ou configurar Root Directory equivalente.
+3. Start Command: `uvicorn server:app --host 0.0.0.0 --port $PORT`.
 4. Adicionar as mesmas variáveis de ambiente do Render.
 
-### 13.5. Frontend em Vercel
+### 13.6. Frontend em Vercel
 
-1. Importar o repo. Root directory: `frontend/`.
+1. Importar o repo. Root Directory: `frontend`.
 2. Framework: **Create React App**.
 3. Environment Variables:
    ```
-   REACT_APP_BACKEND_URL=https://adega-backend.onrender.com
+   REACT_APP_BACKEND_URL=https://url-publica-do-backend
    ```
-4. Build command (padrão CRA): `yarn build`.
-5. Output directory: `build`.
+4. Build Command: `yarn build`.
+5. Output Directory: `build`.
 6. Deploy.
+7. Copiar a URL HTTPS da Vercel para `FRONTEND_URL` no backend e redeployar o backend.
 
-> ⚠️ Se for usar **cookies httpOnly cross-site**, o backend precisa estar no **mesmo domínio raiz** do frontend (subdomínios contam) e os cookies estão configurados com `secure=true; samesite=none`. Caso contrário, o fallback do **Authorization Bearer** garante que a autenticação continua funcionando.
+> Se for usar **cookies httpOnly cross-site**, o backend precisa estar no **mesmo domínio raiz** do frontend (subdomínios contam) e os cookies estão configurados com `secure=true; samesite=none`. Caso contrário, o fallback do **Authorization Bearer** garante que a autenticação continua funcionando.
 
-### 13.6. Publicar em produção (checklist)
+### 13.7. Publicar em produção (checklist)
 
 - [ ] Definir `APP_ENV=production`.
-- [ ] Definir `JWT_SECRET` com string segura (32+ bytes random).
-- [ ] Definir `ADMIN_EMAIL` e `ADMIN_PASSWORD` fortes.
+- [ ] Definir `JWT_SECRET` forte e único por loja.
+- [ ] Definir `ADMIN_EMAIL` e `ADMIN_PASSWORD` forte e único por loja.
 - [ ] Definir `FRONTEND_URL` com o domínio real do frontend.
+- [ ] Definir `REACT_APP_BACKEND_URL` apontando para o backend de produção.
+- [ ] Confirmar que `.env`, `MONGO_URL` e `CLOUDINARY_API_SECRET` não aparecem no GitHub.
 - [ ] Habilitar HTTPS em ambos.
-- [ ] Setar `REACT_APP_BACKEND_URL` apontando para o backend de produção.
 - [ ] Configurar backup automático do MongoDB Atlas.
 - [ ] Configurar logging (Sentry, etc.) — opcional, P2.
-- [ ] Customizar `backend/store_config.py` com os dados reais da loja.
+- [ ] Customizar `backend/store_config.py` e `backend/seed_config.py` com os dados reais da loja.
 
 ---
 

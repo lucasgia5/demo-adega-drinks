@@ -1,7 +1,7 @@
 """
 Backend API tests for Adega Delivery (white-label).
 Covers: auth, config, categories, products, orders, admin stats.
-Uses public REACT_APP_BACKEND_URL with /api prefix.
+Uses REACT_APP_BACKEND_URL with /api prefix.
 """
 import os
 import uuid
@@ -9,7 +9,7 @@ import time
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://winedelivery-1.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:8001").rstrip("/")
 API = f"{BASE_URL}/api"
 
 ADMIN_EMAIL = "admin@adega.com"
