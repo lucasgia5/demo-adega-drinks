@@ -76,24 +76,32 @@ export default function Storefront() {
         </div>
       </section>
 
-      {/* Categories */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide" data-testid="category-list">
-          <CategoryChip
-            label="Todos"
-            active={activeCat === "all"}
-            onClick={() => setActiveCat("all")}
-            testId="category-chip-all"
-          />
-          {categories.map((c) => (
+      {/* Sticky categories */}
+      <section
+        aria-label="Categorias de produtos"
+        className="sticky top-[116px] md:top-16 z-30 border-y border-stone-200 bg-brand-cream/95 backdrop-blur-md shadow-sm"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div
+            className="flex items-center gap-2 overflow-x-auto scroll-smooth overscroll-x-contain scrollbar-hide snap-x snap-proximity"
+            data-testid="category-list"
+          >
             <CategoryChip
-              key={c.id}
-              label={c.name}
-              active={activeCat === c.id}
-              onClick={() => setActiveCat(c.id)}
-              testId={`category-chip-${c.id}`}
+              label="Todos"
+              active={activeCat === "all"}
+              onClick={() => setActiveCat("all")}
+              testId="category-chip-all"
             />
-          ))}
+            {categories.map((c) => (
+              <CategoryChip
+                key={c.id}
+                label={c.name}
+                active={activeCat === c.id}
+                onClick={() => setActiveCat(c.id)}
+                testId={`category-chip-${c.id}`}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
@@ -137,12 +145,14 @@ export default function Storefront() {
 function CategoryChip({ label, active, onClick, testId }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       data-testid={testId}
-      className={`px-4 py-2 rounded-full whitespace-nowrap text-sm transition-all border ${
+      aria-pressed={active}
+      className={`shrink-0 snap-start px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2 ${
         active
-          ? "bg-brand text-white border-brand"
-          : "bg-white text-stone-700 border-stone-200 hover:border-brand/40"
+          ? "bg-brand text-white border-brand shadow-sm"
+          : "bg-white text-stone-700 border-stone-200 hover:border-brand/50 hover:text-brand"
       }`}
     >
       {label}

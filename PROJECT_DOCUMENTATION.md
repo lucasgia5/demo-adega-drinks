@@ -206,7 +206,8 @@ Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redire
 - Faz `GET /api/categories` e `GET /api/products` em paralelo no mount.
 - Mantém estado local: `activeCat` (id da categoria) e `search` (string).
 - Filtra os produtos em memória (`useMemo`) — não dispara nova request por filtro.
-- Renderiza hero com banner (vindo de `STORE_CONFIG.banner_url`), chips de categoria horizontais, grade de `ProductCard`.
+- Renderiza hero com banner (vindo de `STORE_CONFIG.banner_url`), barra sticky de categorias carregadas de `/api/categories` e grade de `ProductCard`.
+- A barra de categorias fica abaixo do header ao rolar, mantém "Todos", destaca a categoria ativa e usa overflow horizontal suave no mobile. Busca e categoria continuam sendo aplicadas juntas no filtro em memória.
 
 #### `ProductDetail.jsx`
 - `GET /api/products/:id`. Permite escolher quantidade e adicionar ao carrinho.
