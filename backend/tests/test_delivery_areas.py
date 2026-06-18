@@ -250,12 +250,38 @@ class TestOrdersWithDeliveryArea:
         })
         assert r.status_code == 200, r.text
         d = r.json()
+        assert d["fulfillment_type"] == "delivery"
         assert d["delivery_area_id"] == jardins["id"]
         assert d["delivery_area_name"] == "Jardins"
         assert d["delivery_fee"] == 12.0
         expected_subtotal = round(self._effective_price(first_product) * qty, 2)
         assert d["subtotal"] == expected_subtotal
         assert d["total"] == expected_subtotal + 12.0
+
+    def test_pickup_ignores_area_fee_and_min_order(self, s, first_product):
+        areas = s.get(f"{API}/delivery-areas").json()
+        moema = next(a for a in areas if a["name"] == "Moema")
+        items = self._items(first_product, qty=1)
+
+        r = requests.post(f"{API}/orders", json={
+            "customer_name": "Pickup Test",
+            "customer_phone": "11999990000",
+            "customer_address": "Retirada na loja",
+            "payment_method": "pix",
+            "fulfillment_type": "pickup",
+            "delivery_area_id": moema["id"],
+            "items": items,
+        })
+
+        assert r.status_code == 200, r.text
+        d = r.json()
+        expected_subtotal = round(self._effective_price(first_product), 2)
+        assert d["fulfillment_type"] == "pickup"
+        assert d["delivery_area_id"] is None
+        assert d["delivery_area_name"] == ""
+        assert d["delivery_fee"] == 0
+        assert d["subtotal"] == expected_subtotal
+        assert d["total"] == expected_subtotal
 
     def test_order_with_inactive_area_400(self, admin_headers, first_product):
         # Create inactive area

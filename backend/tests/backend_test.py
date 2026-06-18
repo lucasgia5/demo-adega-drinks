@@ -292,6 +292,7 @@ class TestOrders:
         assert r.status_code == 200, r.text
         d = r.json()
         assert d["status"] == "recebido"
+        assert d["fulfillment_type"] == "delivery"
         assert d["user_id"] is None
         assert d["items"][0]["product_id"] == items[0]["product_id"]
         assert d["items"][0]["quantity"] == 2

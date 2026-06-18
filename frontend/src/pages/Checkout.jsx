@@ -15,12 +15,17 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Copy } from "lucide-react";
+import { ArrowLeft, Copy, MapPin, Store } from "lucide-react";
 
 const PAYMENT_LABELS = {
   pix: "Pix",
-  dinheiro: "Dinheiro na entrega",
-  cartao: "Cartão na entrega",
+  dinheiro: "Dinheiro",
+  cartao: "Cartão",
+};
+
+const FULFILLMENT_LABELS = {
+  delivery: "Entrega",
+  pickup: "Retirada no local",
 };
 
 export default function Checkout() {
@@ -34,6 +39,7 @@ export default function Checkout() {
     name: user?.name || "",
     phone: user?.phone || "",
     address: "",
+    fulfillment_type: "delivery",
     delivery_area_id: "",
     payment: "pix",
     observations: "",
@@ -57,18 +63,23 @@ export default function Checkout() {
     () => areas.find((a) => a.id === form.delivery_area_id) || null,
     [areas, form.delivery_area_id]
   );
-  const deliveryFee = selectedArea ? Number(selectedArea.fee || 0) : 0;
+  const isPickup = form.fulfillment_type === "pickup";
+  const deliveryFee = !isPickup && selectedArea ? Number(selectedArea.fee || 0) : 0;
   const total = subtotal + deliveryFee;
   const belowMin =
-    selectedArea && selectedArea.min_order != null && subtotal < Number(selectedArea.min_order);
+    !isPickup &&
+    selectedArea &&
+    selectedArea.min_order != null &&
+    subtotal < Number(selectedArea.min_order);
 
   const formatWhatsAppMessage = (order) => {
     const lines = [];
     lines.push(`*Novo Pedido - ${config?.name || STORE_CONFIG_FALLBACK.name}*`);
+    lines.push(`*Tipo:* ${FULFILLMENT_LABELS[order.fulfillment_type || "delivery"]}`);
     lines.push("");
     lines.push(`*Cliente:* ${order.customer_name}`);
     lines.push(`*Telefone:* ${order.customer_phone}`);
-    if (order.delivery_area_name) {
+    if ((order.fulfillment_type || "delivery") === "delivery" && order.delivery_area_name) {
       lines.push(`*Bairro/Região:* ${order.delivery_area_name}`);
     }
     lines.push(`*Endereço:* ${order.customer_address}`);
@@ -79,7 +90,9 @@ export default function Checkout() {
     });
     lines.push("");
     lines.push(`*Subtotal:* ${brl(order.subtotal ?? subtotal)}`);
-    lines.push(`*Taxa de entrega:* ${brl(order.delivery_fee ?? 0)}`);
+    if ((order.fulfillment_type || "delivery") === "delivery") {
+      lines.push(`*Taxa de entrega:* ${brl(order.delivery_fee ?? 0)}`);
+    }
     lines.push(`*Total:* ${brl(order.total)}`);
     lines.push(`*Pagamento:* ${PAYMENT_LABELS[order.payment_method] || order.payment_method}`);
     if (order.payment_method === "pix" && config?.pix_key) {
@@ -104,7 +117,7 @@ export default function Checkout() {
       toast.error("Preencha nome, telefone e endereço");
       return;
     }
-    if (areas.length > 0 && !form.delivery_area_id) {
+    if (!isPickup && areas.length > 0 && !form.delivery_area_id) {
       toast.error("Selecione o bairro/região de entrega");
       return;
     }
@@ -119,7 +132,8 @@ export default function Checkout() {
         customer_phone: form.phone,
         customer_address: form.address,
         payment_method: form.payment,
-        delivery_area_id: form.delivery_area_id || null,
+        fulfillment_type: form.fulfillment_type,
+        delivery_area_id: isPickup ? null : form.delivery_area_id || null,
         items: items.map((i) => ({
           product_id: i.product_id,
           quantity: i.quantity,
@@ -161,6 +175,30 @@ export default function Checkout() {
         <form onSubmit={placeOrder} className="grid lg:grid-cols-3 gap-6 mt-8">
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-2xl border border-stone-200 p-6">
+              <h2 className="font-serif text-xl font-semibold mb-4">Como você quer receber?</h2>
+              <RadioGroup
+                value={form.fulfillment_type}
+                onValueChange={(value) => onChange("fulfillment_type", value)}
+                className="grid sm:grid-cols-2 gap-3"
+              >
+                <FulfillmentOption
+                  value="delivery"
+                  label="Entrega"
+                  description="Receba no endereço informado"
+                  icon={MapPin}
+                  active={!isPickup}
+                />
+                <FulfillmentOption
+                  value="pickup"
+                  label="Retirada no local"
+                  description="Busque seu pedido diretamente na loja"
+                  icon={Store}
+                  active={isPickup}
+                />
+              </RadioGroup>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-stone-200 p-6">
               <h2 className="font-serif text-xl font-semibold mb-4">Dados de contato</h2>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
@@ -186,36 +224,46 @@ export default function Checkout() {
                     value={form.address} onChange={(e) => onChange("address", e.target.value)} required
                   />
                 </div>
-                <div className="sm:col-span-2">
-                  <Label>Bairro / Região de entrega</Label>
-                  {areas.length === 0 ? (
-                    <p className="text-sm text-stone-500 mt-1">
-                      Nenhuma região cadastrada. A entrega seguirá sem taxa.
+                {!isPickup && (
+                  <div className="sm:col-span-2">
+                    <Label>Bairro / Região de entrega</Label>
+                    {areas.length === 0 ? (
+                      <p className="text-sm text-stone-500 mt-1">
+                        Nenhuma região cadastrada. A entrega seguirá sem taxa.
+                      </p>
+                    ) : (
+                      <Select
+                        value={form.delivery_area_id}
+                        onValueChange={(v) => onChange("delivery_area_id", v)}
+                      >
+                        <SelectTrigger data-testid="checkout-area">
+                          <SelectValue placeholder="Selecione seu bairro/região" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {areas.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.name} — Taxa {brl(a.fee)}
+                              {a.min_order != null ? ` · mín. ${brl(a.min_order)}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {belowMin && (
+                      <p className="text-xs text-red-600 mt-2" data-testid="min-order-warning">
+                        Pedido mínimo para {selectedArea?.name}: {brl(selectedArea?.min_order)}. Adicione mais itens.
+                      </p>
+                    )}
+                  </div>
+                )}
+                {isPickup && (
+                  <div className="sm:col-span-2 rounded-xl border border-brand/10 bg-brand/5 p-4">
+                    <p className="text-sm font-medium text-stone-900">Retirada no local selecionada</p>
+                    <p className="mt-1 text-sm text-stone-600">
+                      Não há taxa de entrega nem pedido mínimo por região.
                     </p>
-                  ) : (
-                    <Select
-                      value={form.delivery_area_id}
-                      onValueChange={(v) => onChange("delivery_area_id", v)}
-                    >
-                      <SelectTrigger data-testid="checkout-area">
-                        <SelectValue placeholder="Selecione seu bairro/região" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {areas.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.name} — Taxa {brl(a.fee)}
-                            {a.min_order != null ? ` · mín. ${brl(a.min_order)}` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {belowMin && (
-                    <p className="text-xs text-red-600 mt-2" data-testid="min-order-warning">
-                      Pedido mínimo para {selectedArea?.name}: {brl(selectedArea?.min_order)}. Adicione mais itens.
-                    </p>
-                  )}
-                </div>
+                  </div>
+                )}
                 <div className="sm:col-span-2">
                   <Label htmlFor="obs">Observações (opcional)</Label>
                   <Textarea
@@ -273,6 +321,12 @@ export default function Checkout() {
           <aside className="lg:col-span-1">
             <div className="bg-white rounded-2xl border border-stone-200 p-6 sticky top-20">
               <h2 className="font-serif text-xl font-semibold mb-4">Resumo</h2>
+              <div className="mb-4 flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2 text-sm">
+                <span className="text-stone-600">Tipo</span>
+                <span className="font-medium text-stone-900">
+                  {FULFILLMENT_LABELS[form.fulfillment_type]}
+                </span>
+              </div>
               <div className="space-y-2 max-h-48 overflow-y-auto pr-1" data-testid="checkout-items">
                 {items.length === 0 && (
                   <p className="text-sm text-stone-500">Seu carrinho está vazio.</p>
@@ -289,12 +343,14 @@ export default function Checkout() {
                   <span className="text-stone-600">Subtotal</span>
                   <span className="font-medium" data-testid="checkout-subtotal">{brl(subtotal)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-stone-600">Taxa de entrega {selectedArea ? `(${selectedArea.name})` : ""}</span>
-                  <span className="font-medium" data-testid="checkout-delivery-fee">
-                    {selectedArea ? brl(deliveryFee) : "—"}
-                  </span>
-                </div>
+                {!isPickup && (
+                  <div className="flex justify-between">
+                    <span className="text-stone-600">Taxa de entrega {selectedArea ? `(${selectedArea.name})` : ""}</span>
+                    <span className="font-medium" data-testid="checkout-delivery-fee">
+                      {selectedArea ? brl(deliveryFee) : "—"}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between pt-2 border-t border-stone-100">
                   <span className="text-stone-600">Total</span>
                   <span className="font-serif text-2xl font-semibold text-brand" data-testid="checkout-total">
@@ -318,5 +374,24 @@ export default function Checkout() {
         </form>
       </div>
     </div>
+  );
+}
+
+function FulfillmentOption({ value, label, description, icon: Icon, active }) {
+  return (
+    <label
+      htmlFor={`fulfillment-${value}`}
+      className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors ${
+        active ? "border-brand bg-brand/5" : "border-stone-200 hover:border-stone-300"
+      }`}
+      data-testid={`fulfillment-${value}`}
+    >
+      <RadioGroupItem value={value} id={`fulfillment-${value}`} className="mt-1" />
+      <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${active ? "text-brand" : "text-stone-400"}`} />
+      <span>
+        <span className="block font-medium text-stone-900">{label}</span>
+        <span className="mt-0.5 block text-sm text-stone-500">{description}</span>
+      </span>
+    </label>
   );
 }

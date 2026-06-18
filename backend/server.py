@@ -316,6 +316,7 @@ class OrderIn(BaseModel):
     customer_phone: str
     customer_address: str
     payment_method: Literal["pix", "dinheiro", "cartao"]
+    fulfillment_type: Literal["delivery", "pickup"] = "delivery"
     items: List[OrderItemIn]
     observations: Optional[str] = ""
     delivery_area_id: Optional[str] = None
@@ -327,6 +328,7 @@ class Order(BaseModel):
     customer_phone: str
     customer_address: str
     payment_method: str
+    fulfillment_type: str = "delivery"
     items: List[OrderItem]
     observations: str = ""
     total: float
@@ -624,11 +626,12 @@ async def create_order(payload: OrderIn, request: Request):
 
     priced_items = await build_priced_order_items(payload.items)
 
-    # Resolve delivery area
+    # Resolve delivery area only for delivery orders.
     delivery_area_id = None
     delivery_area_name = ""
     delivery_fee = 0.0
-    if payload.delivery_area_id:
+    area = None
+    if payload.fulfillment_type == "delivery" and payload.delivery_area_id:
         area = await db.delivery_areas.find_one(
             {"id": payload.delivery_area_id}, {"_id": 0}
         )
@@ -649,7 +652,7 @@ async def create_order(payload: OrderIn, request: Request):
     subtotal = compute_subtotal(priced_items)
 
     # Enforce min_order if defined
-    if payload.delivery_area_id:
+    if payload.fulfillment_type == "delivery" and area:
         min_order = area.get("min_order")
         if min_order is not None and subtotal < float(min_order):
             raise HTTPException(
@@ -665,6 +668,7 @@ async def create_order(payload: OrderIn, request: Request):
         "customer_phone": payload.customer_phone.strip(),
         "customer_address": payload.customer_address.strip(),
         "payment_method": payload.payment_method,
+        "fulfillment_type": payload.fulfillment_type,
         "items": [i.model_dump() for i in priced_items],
         "observations": payload.observations or "",
         "subtotal": subtotal,
@@ -681,16 +685,21 @@ async def create_order(payload: OrderIn, request: Request):
     return doc
 
 
+def with_fulfillment_type(order: dict) -> dict:
+    order["fulfillment_type"] = order.get("fulfillment_type") or "delivery"
+    return order
+
+
 @api_router.get("/orders")
 async def list_orders(_: dict = Depends(require_admin)):
     docs = await db.orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
-    return docs
+    return [with_fulfillment_type(doc) for doc in docs]
 
 
 @api_router.get("/orders/mine")
 async def list_my_orders(user: dict = Depends(get_current_user)):
     docs = await db.orders.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    return docs
+    return [with_fulfillment_type(doc) for doc in docs]
 
 
 @api_router.patch("/orders/{order_id}/status")
@@ -699,7 +708,7 @@ async def update_order_status(order_id: str, payload: OrderStatusIn, _: dict = D
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
     doc = await db.orders.find_one({"id": order_id}, {"_id": 0})
-    return doc
+    return with_fulfillment_type(doc)
 
 
 # ---------------------------------------------------------------------------

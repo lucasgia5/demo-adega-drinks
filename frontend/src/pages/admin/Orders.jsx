@@ -15,6 +15,7 @@ const STATUS = [
   { value: "cancelado", label: "Cancelado", color: "bg-red-100 text-red-800" },
 ];
 const PAY = { pix: "Pix", dinheiro: "Dinheiro", cartao: "Cartão" };
+const FULFILLMENT = { delivery: "Entrega", pickup: "Retirada no local" };
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
@@ -86,6 +87,10 @@ export default function Orders() {
                     <div>
                       <p className="text-xs uppercase tracking-wider text-stone-500 mb-1">Contato</p>
                       <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> {o.customer_phone}</p>
+                      <p className="mt-2 text-xs uppercase tracking-wider text-stone-500">Tipo</p>
+                      <p className="mt-1 font-medium" data-testid={`fulfillment-${o.id}`}>
+                        {FULFILLMENT[o.fulfillment_type || "delivery"]}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-wider text-stone-500 mb-1">Endereço</p>
@@ -112,7 +117,7 @@ export default function Orders() {
                           <span>{brl(o.subtotal)}</span>
                         </div>
                       )}
-                      {o.delivery_fee != null && (
+                      {(o.fulfillment_type || "delivery") === "delivery" && o.delivery_fee != null && (
                         <div className="flex justify-between p-3 text-sm text-stone-600">
                           <span>Taxa de entrega{o.delivery_area_name ? ` (${o.delivery_area_name})` : ""}</span>
                           <span>{brl(o.delivery_fee)}</span>

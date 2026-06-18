@@ -17,6 +17,10 @@ const STATUS_COLORS = {
   entregue: "bg-green-100 text-green-800",
   cancelado: "bg-red-100 text-red-800",
 };
+const FULFILLMENT_LABELS = {
+  delivery: "Entrega",
+  pickup: "Retirada no local",
+};
 
 export default function Account() {
   const { user } = useAuth();
@@ -62,6 +66,9 @@ export default function Account() {
                 </span>
               </div>
               <div className="mt-4 space-y-1 text-sm">
+                <p className="mb-3 font-medium text-stone-900" data-testid={`order-fulfillment-${o.id}`}>
+                  {FULFILLMENT_LABELS[o.fulfillment_type || "delivery"]}
+                </p>
                 {o.items.map((i, idx) => (
                   <div key={idx} className="flex justify-between text-stone-700">
                     <span>{i.quantity}× {i.name}</span>
@@ -81,7 +88,7 @@ export default function Account() {
                     <span>{brl(o.subtotal)}</span>
                   </div>
                 )}
-                {o.delivery_fee != null && (
+                {(o.fulfillment_type || "delivery") === "delivery" && o.delivery_fee != null && (
                   <div className="flex justify-between text-stone-600">
                     <span>Taxa de entrega</span>
                     <span>{brl(o.delivery_fee)}</span>

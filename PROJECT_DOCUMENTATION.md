@@ -214,11 +214,11 @@ Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redire
 - `GET /api/products/:id`. Permite escolher quantidade e adicionar ao carrinho.
 
 #### `Checkout.jsx`
-- Lê o carrinho do `CartContext` e exibe Resumo (Subtotal, Taxa de entrega, Total).
-- Busca áreas ativas em `GET /api/delivery-areas`. Cliente deve escolher uma.
-- Bloqueia confirmar se subtotal < `min_order` da área selecionada (mostra `min-order-warning`).
+- Lê o carrinho do `CartContext` e permite escolher entre `delivery` (Entrega) e `pickup` (Retirada no local).
+- Em entrega, exibe Resumo (Subtotal, Taxa de entrega, Total), busca áreas ativas em `GET /api/delivery-areas` e mantém a validação de `min_order`.
+- Em retirada, oculta a seleção de área, ignora pedido mínimo por região, usa `delivery_fee=0` e `total=subtotal`.
 - No submit:
-  1. `POST /api/orders` com `{ customer_name, customer_phone, customer_address, delivery_area_id, payment_method, items, observations }`.
+  1. `POST /api/orders` com `{ customer_name, customer_phone, customer_address, fulfillment_type, delivery_area_id, payment_method, items, observations }`.
   2. Constrói mensagem WhatsApp via `formatWhatsAppMessage(order)`.
   3. `window.open(\`https://wa.me/${number}?text=${encodeURIComponent(msg)}\`)`.
   4. Limpa carrinho (`clear()`), toast e redireciona para `/`.
@@ -472,6 +472,7 @@ Upload de imagem:
   "customer_phone": "11999999999",
   "customer_address": "Rua X, 123",
   "payment_method": "pix",
+  "fulfillment_type": "delivery",
   "delivery_area_id": "<uuid|null>",
   "observations": "deixar com porteiro",
   "items": [
@@ -480,7 +481,7 @@ Upload de imagem:
 }
 ```
 
-O frontend envia somente `product_id` e `quantity`. O backend ignora qualquer campo de preço enviado pelo cliente (`price`, `unit_price`, `subtotal`, `total`), busca cada produto no MongoDB, valida disponibilidade e valores não negativos, escolhe `promo_price` quando `promo_active=true` e houver preço promocional, calcula `unit_price`, `subtotal`, `delivery_fee` e `total`, e salva no pedido apenas os valores calculados no servidor. Status inicial = `"recebido"`.
+O frontend envia somente `product_id` e `quantity` para cada item. O backend ignora qualquer campo de preço enviado pelo cliente (`price`, `unit_price`, `subtotal`, `total`), busca cada produto no MongoDB, valida disponibilidade e valores não negativos, escolhe `promo_price` quando `promo_active=true` e houver preço promocional, calcula `unit_price`, `subtotal`, `delivery_fee` e `total`, e salva no pedido apenas os valores calculados no servidor. Em `pickup`, a área enviada é ignorada e a taxa permanece zero. Status inicial = `"recebido"`.
 
 `OrderStatusIn`: `{ "status": "recebido"|"em_preparo"|"saiu_entrega"|"entregue"|"cancelado" }`
 
@@ -642,6 +643,7 @@ Imagens de produtos não são salvas como binário no MongoDB. O banco mantém s
 | `customer_phone` | string | |
 | `customer_address` | string | |
 | `payment_method` | string | `pix` / `dinheiro` / `cartao` |
+| `fulfillment_type` | string | `delivery` / `pickup`; pedidos antigos sem o campo são tratados como `delivery` |
 | `items` | array<object> | Snapshot calculado pelo backend: `{ product_id, name, quantity, unit_price }` |
 | `observations` | string | |
 | `subtotal` | float | soma dos itens |
@@ -661,6 +663,7 @@ Exemplo:
   "customer_phone": "11999999999",
   "customer_address": "Rua A, 100",
   "payment_method": "pix",
+  "fulfillment_type": "delivery",
   "items": [
     { "product_id": "p-uuid", "name": "Malbec Argentino", "quantity": 2, "unit_price": 72.5 }
   ],
@@ -836,16 +839,18 @@ Segurança de preços no checkout: o carrinho pode manter valores para exibiçã
 4. **"Adicionar ao carrinho"** → `CartContext.add(product, qty)` guarda dados de exibição do carrinho no `localStorage`; preço no carrinho é apenas UI, não fonte de verdade para o pedido. Abre o `CartDrawer`.
 5. **Carrinho** → cliente ajusta quantidades / remove itens. Total recalculado em tempo real.
 6. **"Finalizar"** → navega para `/checkout`. Frontend chama `/api/delivery-areas` para popular as opções de bairro.
-7. **Cliente preenche** nome, telefone, endereço, **bairro/região**, observações e seleciona forma de pagamento. Se selecionar bairro abaixo do mínimo, vê warning e botão fica desabilitado.
-8. **"Confirmar e enviar via WhatsApp"** → `POST /api/orders`. Backend:
+7. **Cliente escolhe** Entrega ou Retirada no local. Em entrega, seleciona bairro/região e continua sujeito à taxa e ao pedido mínimo. Em retirada, a área fica oculta e não há taxa nem mínimo regional.
+8. **Cliente preenche** nome, telefone, endereço, observações e seleciona forma de pagamento.
+9. **"Confirmar e enviar via WhatsApp"** → `POST /api/orders`. Backend:
    - Lê token opcional (para popular `user_id`).
-   - Valida itens, área, mínimo e disponibilidade dos produtos.
+   - Valida itens e disponibilidade dos produtos; área e mínimo são validados apenas em entrega.
    - Busca produtos no MongoDB e calcula `unit_price`, `subtotal`, `delivery_fee` e `total` exclusivamente no backend.
    - Salva documento com `status="recebido"`, itens precificados pelo backend, `subtotal`, `delivery_fee`, `total`.
    - Retorna o pedido completo.
-9. **Frontend** constrói mensagem:
+10. **Frontend** constrói mensagem:
    ```
    *Novo Pedido - <nome da loja configurada>*
+   *Tipo:* Entrega
    *Cliente:* João
    *Telefone:* 11999...
    *Bairro/Região:* Jardins
@@ -860,9 +865,9 @@ Segurança de preços no checkout: o carrinho pode manter valores para exibiçã
    *Observações:* tocar interfone
    Pedido #A1B2C3D4
    ```
-10. `window.open("https://wa.me/<numero>?text=" + encodeURIComponent(msg))`. O cliente envia a mensagem manualmente.
-11. **Admin** abre `/admin/pedidos`, vê o pedido no topo (ordenado por data desc). Expande, lê detalhes.
-12. **Admin** muda status no Select → `PATCH /api/orders/{id}/status`. Cliente verá o novo status em `/conta` no próximo refresh.
+11. `window.open("https://wa.me/<numero>?text=" + encodeURIComponent(msg))`. O cliente envia a mensagem manualmente.
+12. **Admin** abre `/admin/pedidos`, vê o pedido no topo (ordenado por data desc), incluindo o tipo Entrega/Retirada.
+13. **Admin** muda status no Select → `PATCH /api/orders/{id}/status`. Cliente verá o novo status e o tipo do pedido em `/conta` no próximo refresh.
 
 ---
 
