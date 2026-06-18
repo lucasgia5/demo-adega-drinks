@@ -251,6 +251,18 @@ class LoginIn(BaseModel):
     password: str
 
 
+class StoreBrandingIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    store_name: str = Field(min_length=1, max_length=120)
+    store_logo_url: str = Field(default="", max_length=1000)
+    store_banner_url: str = Field(default="", max_length=1000)
+    banner_title: str = Field(default="", max_length=160)
+    banner_subtitle: str = Field(default="", max_length=300)
+    banner_button_text: str = Field(default="", max_length=80)
+    banner_button_link: str = Field(default="", max_length=1000)
+    banner_enabled: bool = True
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
@@ -450,10 +462,111 @@ async def me(user: dict = Depends(get_current_user)):
 # ---------------------------------------------------------------------------
 # Store config (public)
 # ---------------------------------------------------------------------------
+STORE_BRANDING_ID = "store_branding"
+
+
+def validate_optional_url(value: str, field_name: str, allow_relative: bool = False) -> str:
+    cleaned = value.strip()
+    if not cleaned:
+        return ""
+    if allow_relative and (
+        (cleaned.startswith("/") and not cleaned.startswith("//"))
+        or cleaned.startswith("#")
+    ):
+        return cleaned
+    parsed = urlparse(cleaned)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(status_code=400, detail=f"{field_name} deve ser uma URL http(s) válida")
+    return cleaned
+
+
+async def get_store_branding_overrides() -> dict:
+    doc = await db.store_settings.find_one({"_id": STORE_BRANDING_ID})
+    if not doc:
+        return {}
+    doc.pop("_id", None)
+    doc.pop("updated_at", None)
+    return doc
+
+
+async def get_effective_store_config() -> dict:
+    overrides = await get_store_branding_overrides()
+    public = dict(STORE_CONFIG)
+
+    store_name = overrides.get("store_name") or public.get("name", "")
+    logo_url = (
+        overrides.get("store_logo_url")
+        or public.get("store_logo_url")
+        or public.get("logo_url", "")
+    )
+    banner_url = (
+        overrides.get("store_banner_url")
+        or public.get("store_banner_url")
+        or public.get("banner_url", "")
+    )
+
+    public.update(overrides)
+    public["name"] = store_name
+    public["store_name"] = store_name
+    public["logo_url"] = logo_url
+    public["store_logo_url"] = logo_url
+    public["banner_url"] = banner_url
+    public["store_banner_url"] = banner_url
+    public["banner_title"] = overrides.get("banner_title") or public.get("banner_title") or store_name
+    public["banner_subtitle"] = (
+        overrides.get("banner_subtitle") or public.get("banner_subtitle") or public.get("tagline", "")
+    )
+    public["banner_button_text"] = overrides.get(
+        "banner_button_text", public.get("banner_button_text", "")
+    )
+    public["banner_button_link"] = overrides.get(
+        "banner_button_link", public.get("banner_button_link", "")
+    )
+    public["banner_enabled"] = overrides.get(
+        "banner_enabled", public.get("banner_enabled", True)
+    )
+    return public
+
+
 @api_router.get("/config")
 async def get_store_config():
-    public = {k: v for k, v in STORE_CONFIG.items()}
-    return public
+    return await get_effective_store_config()
+
+
+@api_router.get("/admin/store-settings")
+async def get_admin_store_settings(_: dict = Depends(require_admin)):
+    return await get_effective_store_config()
+
+
+@api_router.put("/admin/store-settings")
+async def update_admin_store_settings(
+    payload: StoreBrandingIn,
+    _: dict = Depends(require_admin),
+):
+    store_name = payload.store_name.strip()
+    if not store_name:
+        raise HTTPException(status_code=400, detail="store_name não pode ficar vazio")
+    update = {
+        "store_name": store_name,
+        "store_logo_url": validate_optional_url(payload.store_logo_url, "store_logo_url"),
+        "store_banner_url": validate_optional_url(payload.store_banner_url, "store_banner_url"),
+        "banner_title": payload.banner_title.strip(),
+        "banner_subtitle": payload.banner_subtitle.strip(),
+        "banner_button_text": payload.banner_button_text.strip(),
+        "banner_button_link": validate_optional_url(
+            payload.banner_button_link,
+            "banner_button_link",
+            allow_relative=True,
+        ),
+        "banner_enabled": payload.banner_enabled,
+        "updated_at": iso(now_utc()),
+    }
+    await db.store_settings.update_one(
+        {"_id": STORE_BRANDING_ID},
+        {"$set": update},
+        upsert=True,
+    )
+    return await get_effective_store_config()
 
 
 # ---------------------------------------------------------------------------
@@ -513,7 +626,7 @@ def product_image_extension(filename: str) -> str:
     return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
 
-async def upload_product_image_to_cloudinary(file: UploadFile) -> str:
+async def upload_image_to_cloudinary(file: UploadFile, folder: str) -> str:
     extension = product_image_extension(file.filename or "")
     if extension not in ALLOWED_PRODUCT_IMAGE_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Tipo de arquivo inválido")
@@ -529,7 +642,7 @@ async def upload_product_image_to_cloudinary(file: UploadFile) -> str:
     configure_cloudinary()
     result = cloudinary.uploader.upload(
         contents,
-        folder="ecomm-white-label/products",
+        folder=folder,
         resource_type="image",
         use_filename=True,
         unique_filename=True,
@@ -539,6 +652,10 @@ async def upload_product_image_to_cloudinary(file: UploadFile) -> str:
     if not secure_url:
         raise HTTPException(status_code=502, detail="Cloudinary não retornou URL segura")
     return secure_url
+
+
+async def upload_product_image_to_cloudinary(file: UploadFile) -> str:
+    return await upload_image_to_cloudinary(file, "ecomm-white-label/products")
 
 
 @api_router.get("/products")
@@ -556,6 +673,19 @@ async def list_products(category_id: Optional[str] = None, search: Optional[str]
 async def upload_product_image(file: UploadFile = File(...), _: dict = Depends(require_admin)):
     secure_url = await upload_product_image_to_cloudinary(file)
     return {"image_url": secure_url}
+
+
+@api_router.post("/admin/store-settings/upload-image")
+async def upload_store_branding_image(
+    image_type: Literal["logo", "banner"],
+    file: UploadFile = File(...),
+    _: dict = Depends(require_admin),
+):
+    secure_url = await upload_image_to_cloudinary(
+        file,
+        f"ecomm-white-label/store/{image_type}",
+    )
+    return {"image_url": secure_url, "image_type": image_type}
 
 
 @api_router.get("/products/{prod_id}")

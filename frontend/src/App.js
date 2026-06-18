@@ -18,6 +18,7 @@ import AdminCombos from "@/pages/admin/Combos";
 import AdminCategories from "@/pages/admin/Categories";
 import AdminOrders from "@/pages/admin/Orders";
 import AdminDeliveryAreas from "@/pages/admin/DeliveryAreas";
+import AdminStoreSettings from "@/pages/admin/StoreSettings";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 function App() {
@@ -55,6 +56,9 @@ function App() {
                 } />
                 <Route path="/admin/areas" element={
                   <ProtectedRoute requireAdmin><AdminDeliveryAreas /></ProtectedRoute>
+                } />
+                <Route path="/admin/identidade" element={
+                  <ProtectedRoute requireAdmin><AdminStoreSettings /></ProtectedRoute>
                 } />
               </Routes>
               <Toaster position="top-right" richColors />

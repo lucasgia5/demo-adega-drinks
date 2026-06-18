@@ -51,56 +51,65 @@ export default function Storefront() {
       <AgeGate config={config} loading={configLoading} />
       <Header search={search} setSearch={setSearch} />
 
-      {/* Hero */}
-      <section
-        className="relative h-[280px] sm:h-[360px] lg:h-[420px] overflow-hidden"
-        data-testid="hero-section"
-      >
-        {config?.banner_url ? (
-          <img src={config.banner_url} alt="Banner" className="absolute inset-0 h-full w-full object-cover" />
-        ) : (
-          <div className="absolute inset-0 bg-brand" />
-        )}
-        <div className="absolute inset-0 hero-overlay" />
-        <div className="relative max-w-7xl mx-auto h-full px-4 sm:px-6 lg:px-8 flex flex-col justify-end pb-10">
-          <p className="text-brand-gold uppercase tracking-[0.3em] text-xs font-semibold">
-            {config?.tagline || "Bem-vindo"}
-          </p>
-          <h1 className="font-serif text-white text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mt-2 text-balance">
-            {config?.name || STORE_CONFIG_FALLBACK.name}
-          </h1>
-          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-white/90 text-sm">
-            {businessStatus && (
-              <span
-                className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-medium ${
-                  businessStatus.isOpen
-                    ? "bg-emerald-500/90 text-white"
-                    : "bg-stone-950/75 text-white"
-                }`}
-                data-testid="business-status"
+      {config?.banner_enabled !== false && (
+        <section
+          className="relative h-[280px] overflow-hidden sm:h-[360px] lg:h-[420px]"
+          data-testid="hero-section"
+        >
+          {config?.banner_url ? (
+            <img src={config.banner_url} alt="Banner" className="absolute inset-0 h-full w-full object-cover" />
+          ) : (
+            <div className="absolute inset-0 bg-brand" />
+          )}
+          <div className="absolute inset-0 hero-overlay" />
+          <div className="relative mx-auto flex h-full max-w-7xl flex-col justify-end px-4 pb-10 sm:px-6 lg:px-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-brand-gold">
+              {config?.banner_subtitle || config?.tagline || "Bem-vindo"}
+            </p>
+            <h1 className="mt-2 text-balance font-serif text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl">
+              {config?.banner_title || config?.name || STORE_CONFIG_FALLBACK.name}
+            </h1>
+            {config?.banner_button_text && config?.banner_button_link && (
+              <a
+                href={config.banner_button_link}
+                className="mt-5 inline-flex h-11 w-fit items-center rounded-lg bg-white px-5 text-sm font-semibold text-stone-900 transition-colors hover:bg-brand-gold"
               >
-                <Clock3 className="h-4 w-4" />
-                <span>{businessStatus.statusLabel}</span>
-                {businessStatus.timingLabel && (
-                  <span className="font-normal text-white/80">
-                    · {businessStatus.timingLabel}
-                  </span>
-                )}
-              </span>
+                {config.banner_button_text}
+              </a>
             )}
-            {config?.address && (
-              <span className="flex items-center gap-1.5">
-                <MapPin className="h-4 w-4" /> {config.address}
-              </span>
-            )}
-            {config?.delivery_note && (
-              <span className="flex items-center gap-1.5">
-                <Truck className="h-4 w-4" /> {config.delivery_note}
-              </span>
-            )}
+            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-white/90">
+              {businessStatus && (
+                <span
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-medium ${
+                    businessStatus.isOpen
+                      ? "bg-emerald-500/90 text-white"
+                      : "bg-stone-950/75 text-white"
+                  }`}
+                  data-testid="business-status"
+                >
+                  <Clock3 className="h-4 w-4" />
+                  <span>{businessStatus.statusLabel}</span>
+                  {businessStatus.timingLabel && (
+                    <span className="font-normal text-white/80">
+                      · {businessStatus.timingLabel}
+                    </span>
+                  )}
+                </span>
+              )}
+              {config?.address && (
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="h-4 w-4" /> {config.address}
+                </span>
+              )}
+              {config?.delivery_note && (
+                <span className="flex items-center gap-1.5">
+                  <Truck className="h-4 w-4" /> {config.delivery_note}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {combos.length > 0 && (
         <section className="border-b border-stone-200 bg-white py-6" data-testid="weekly-combos">
@@ -152,9 +161,10 @@ export default function Storefront() {
                 testId={`category-chip-${c.id}`}
               />
             ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Products grid */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 pb-20">

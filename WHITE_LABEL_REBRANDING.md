@@ -21,6 +21,7 @@ Para criar uma loja de quadros, altere os arquivos e variáveis abaixo antes do 
 | O que mudar | Onde mudar |
 |---|---|
 | Nome, logo, cores, banner, WhatsApp, Pix, domínio público | `backend/store_config.py` |
+| Logo, banner e textos visuais após o deploy | `/admin/identidade` |
 | Categorias seed e produtos seed | `backend/seed_config.py` |
 | Fallback/base visual Tailwind/shadcn | `frontend/src/index.css` e `frontend/tailwind.config.js` |
 | Fallback visual do frontend | `frontend/src/whiteLabelDefaults.js` |
@@ -119,13 +120,13 @@ Também ajuste `frontend/src/whiteLabelDefaults.js` para um fallback coerente ca
 
 ## 2. Logo
 
-Suba o logo em uma URL pública ou no Cloudinary e edite:
+O default do template continua em `backend/store_config.py`:
 
 ```python
-"logo_url": "https://res.cloudinary.com/.../logo.png"
+"store_logo_url": "https://res.cloudinary.com/.../logo.png"
 ```
 
-Se `logo_url` ficar vazio, o frontend renderiza o nome da loja em texto.
+Depois do deploy, o administrador pode acessar `/admin/identidade`, visualizar o logo atual e enviar uma nova imagem diretamente ao Cloudinary. O valor persistido no MongoDB sobrescreve o default. Se não existir override nem logo padrão, o frontend renderiza o nome da loja em texto.
 
 ## 3. Cores
 
@@ -149,13 +150,25 @@ Para loja de quadros, uma sugestão:
 
 ## 4. Banner
 
-Edite `backend/store_config.py`:
+Defaults disponíveis em `backend/store_config.py`:
 
 ```python
-"banner_url": "https://.../banner-quadros.jpg"
+"store_banner_url": "https://.../banner-quadros.jpg",
+"banner_title": "Galeria dos Quadros",
+"banner_subtitle": "Arte para transformar seus ambientes",
+"banner_button_text": "Ver coleção",
+"banner_button_link": "/#produtos",
+"banner_enabled": True,
 ```
 
-Use uma imagem horizontal mostrando quadros em parede/ambiente decorado.
+Em `/admin/identidade`, o administrador pode:
+
+- visualizar e enviar novo banner;
+- editar título e subtítulo;
+- configurar texto/link do botão;
+- ativar ou desativar o banner.
+
+Se não houver banner persistido, a home usa a imagem definida no template. Use uma imagem horizontal adequada a mobile e desktop.
 
 ## 5. WhatsApp
 
@@ -281,6 +294,7 @@ Use uma senha forte e única por loja. Se `ADMIN_PASSWORD`, `JWT_SECRET`, `MONGO
 - [ ] Alterar cores em `frontend/src/index.css`.
 - [ ] Alterar cores em `frontend/tailwind.config.js`.
 - [ ] Alterar fallback em `frontend/src/whiteLabelDefaults.js`.
+- [ ] Revisar logo e banner em `/admin/identidade`.
 - [ ] Ativar ou desativar o age gate conforme o tipo de loja.
 - [ ] Configurar horário de funcionamento e fuso da loja.
 - [ ] Configurar ou desativar o mínimo para frete grátis.

@@ -16,6 +16,7 @@ STORE_CONFIG = {
     "tagline": "Os melhores rótulos entregues na sua porta",
     "search_placeholder": "Buscar produtos...",
     "logo_url": "",  # leave empty to render text logo
+    "store_logo_url": "",
     "primary_color": "#722F37",  # Bordeaux
     "secondary_color": "#C89F53",  # Cork gold
     "whatsapp_number": "5511999990000",  # international format, digits only
@@ -23,6 +24,12 @@ STORE_CONFIG = {
     "pix_key": "contato@adegadovinho.com.br",
     "pix_key_type": "E-mail",
     "banner_url": "https://images.unsplash.com/photo-1578911373434-0cb395d2cbfb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHw0fHx3aW5lJTIwY2VsbGFyJTIwc3RvcmUlMjBpbnRlcmlvcnxlbnwwfHx8fDE3ODE1MzM0OTF8MA&ixlib=rb-4.1.0&q=85",
+    "store_banner_url": "",
+    "banner_title": "",
+    "banner_subtitle": "",
+    "banner_button_text": "",
+    "banner_button_link": "",
+    "banner_enabled": True,
     "public_domain": "https://example.com",
     "currency_symbol": "R$",
     "currency_code": "BRL",

@@ -142,6 +142,7 @@ Coleções: `users`, `categories`, `products`, `orders`, `delivery_areas`.
 │               ├── Dashboard.jsx
 │               ├── Products.jsx
 │               ├── Combos.jsx
+│               ├── StoreSettings.jsx
 │               ├── Categories.jsx
 │               ├── Orders.jsx
 │               └── DeliveryAreas.jsx
@@ -199,6 +200,7 @@ Definidas em `frontend/src/App.js` (React Router).
 | `/admin/categorias` | `admin/Categories` | Admin |
 | `/admin/pedidos` | `admin/Orders` | Admin |
 | `/admin/areas` | `admin/DeliveryAreas` | Admin |
+| `/admin/identidade` | `admin/StoreSettings` | Admin |
 
 Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redireciona para `/login` (ou `/admin/login` se for admin). Token de customer tentando `/admin/*` → redireciona para `/`.
 
@@ -208,7 +210,7 @@ Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redire
 - Faz `GET /api/categories`, `GET /api/products` e `GET /api/combos` em paralelo no mount.
 - Mantém estado local: `activeCat` (id da categoria) e `search` (string).
 - Filtra os produtos em memória (`useMemo`) — não dispara nova request por filtro.
-- Renderiza hero com banner (vindo de `STORE_CONFIG.banner_url`), barra sticky de categorias carregadas de `/api/categories` e grade de `ProductCard`.
+- Renderiza hero com identidade efetiva retornada por `/api/config`. Logo, banner, título, subtítulo, botão e visibilidade podem vir da coleção `store_settings`; quando ausentes, usa os defaults de `STORE_CONFIG`.
 - A barra de categorias fica abaixo do header ao rolar, mantém "Todos", destaca a categoria ativa e usa overflow horizontal suave no mobile. Busca e categoria continuam sendo aplicadas juntas no filtro em memória.
 - Quando `STORE_CONFIG.age_gate_enabled` está ativo, exibe confirmação bloqueante de idade antes do acesso à vitrine. A confirmação é persistida em `localStorage.white_label_age_confirmed`; a recusa mantém o acesso bloqueado e não redireciona para sites externos.
 - Quando `business_hours_enabled` está ativo, calcula o status no fuso configurado e exibe no hero "Aberto agora"/"Fechado agora", acompanhado de "Abre às"/"Fecha às".
@@ -247,6 +249,11 @@ Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redire
 #### `admin/Combos.jsx`
 - CRUD de combos com nome, descrição, imagem opcional, produtos/quantidades, preço promocional, status e ordem de exibição.
 - O status público depende de `active=true` e da disponibilidade de todos os produtos vinculados.
+
+#### `admin/StoreSettings.jsx`
+- Tela protegida em `/admin/identidade` para editar nome, logo/foto de perfil, banner, textos, botão e visibilidade do banner.
+- Logo e banner podem ser informados por URL ou enviados ao Cloudinary com preview.
+- Após salvar, recarrega `StoreConfigContext`, refletindo as mudanças no header, sidebar e home.
 
 #### `admin/Categories.jsx`
 - Lista simples com create/edit/delete em dialog. Backend rejeita delete se houver produtos vinculados (HTTP 400).
@@ -333,7 +340,7 @@ Setup / DB / FastAPI app
 Auth helpers (hash, JWT, dependencies)
 Models (Pydantic)
 Routes — Auth
-Routes — Store config (público)
+Routes — Store config (público + admin)
 Routes — Categories
 Routes — Products
 Routes — Orders
@@ -420,9 +427,14 @@ Resposta de sucesso (login/register):
 
 #### 4.5.2. Store config
 
-| Método | URL | Descrição |
-|---|---|---|
-| GET | `/api/config` | Retorna o dict `STORE_CONFIG` (white-label). |
+| Método | URL | Auth | Descrição |
+|---|---|---|---|
+| GET | `/api/config` | — | Retorna a configuração pública efetiva: defaults do template + overrides persistidos. |
+| GET | `/api/admin/store-settings` | Admin | Retorna os campos visuais editáveis. |
+| PUT | `/api/admin/store-settings` | Admin | Persiste nome, logo, banner, textos, botão e visibilidade. |
+| POST | `/api/admin/store-settings/upload-image?image_type=logo\|banner` | Admin | Valida e envia logo/banner ao Cloudinary. |
+
+Somente campos visuais explicitamente declarados em `StoreBrandingIn` podem ser atualizados. URLs aceitam `http(s)`; o link do botão também aceita caminho interno iniciado por `/` ou `#`.
 
 #### 4.5.3. Categories
 
@@ -764,6 +776,22 @@ delivery_areas 1───* orders (orders.delivery_area_id)
 
 Não há foreign keys reais — o app valida no nível de aplicação.
 
+### 5.8. `store_settings`
+
+Coleção singleton com `_id="store_branding"`. Persiste somente overrides visuais:
+
+- `store_name`
+- `store_logo_url`
+- `store_banner_url`
+- `banner_title`
+- `banner_subtitle`
+- `banner_button_text`
+- `banner_button_link`
+- `banner_enabled`
+- `updated_at`
+
+O endpoint público mescla esses valores sobre `backend/store_config.py`. Campos vazios de imagem retornam ao logo/banner padrão do template.
+
 ---
 
 ## 6. Fluxo de Autenticação
@@ -934,7 +962,8 @@ O guia operacional completo fica em `WHITE_LABEL_REBRANDING.md`.
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `backend/store_config.py` | Nome, logo, cores, banner, WhatsApp, Pix, endereço, domínio público e textos públicos da loja |
+| `backend/store_config.py` | Defaults de nome, logo, cores, banner, WhatsApp, Pix, endereço, domínio público e textos públicos |
+| MongoDB `store_settings` | Overrides visuais alterados em `/admin/identidade` |
 | `backend/seed_config.py` | Categorias seed e produtos seed |
 | `frontend/src/whiteLabelDefaults.js` | Fallback visual do frontend quando `/api/config` não responde |
 | `frontend/src/index.css` | Variáveis CSS/HSL base e fallback visual |
@@ -946,8 +975,10 @@ O guia operacional completo fica em `WHITE_LABEL_REBRANDING.md`.
 | Campo | Onde aparece |
 |---|---|
 | `name` | Header, hero, mensagem WhatsApp e sidebar admin |
+| `store_name` | Override persistido do nome da loja |
 | `tagline` | Chamada do hero |
 | `logo_url` | Header e sidebar admin; se vazio, renderiza nome em texto |
+| `store_logo_url` | Logo/foto de perfil editável pelo admin; exposto também como `logo_url` |
 | `primary_color` | Config pública da marca |
 | `secondary_color` | Config pública da marca |
 | `whatsapp_number` | Link `wa.me` do checkout |
@@ -955,6 +986,12 @@ O guia operacional completo fica em `WHITE_LABEL_REBRANDING.md`.
 | `pix_key` | Checkout quando pagamento = Pix |
 | `pix_key_type` | Rótulo da chave Pix |
 | `banner_url` | Imagem do hero |
+| `store_banner_url` | Banner editável pelo admin; exposto também como `banner_url` |
+| `banner_title` | Título principal do hero |
+| `banner_subtitle` | Texto de apoio do hero |
+| `banner_button_text` | Texto opcional do botão do hero |
+| `banner_button_link` | Link interno ou externo do botão |
+| `banner_enabled` | Ativa ou oculta o hero |
 | `public_domain` | Domínio público da loja |
 | `currency_symbol` / `currency_code` | Config de moeda |
 | `delivery_note` | Texto curto do hero |
@@ -979,6 +1016,7 @@ Para criar uma loja de quadros:
 4. Edite `frontend/src/whiteLabelDefaults.js` para um fallback genérico da nova loja.
 5. Configure `FRONTEND_URL`, `REACT_APP_BACKEND_URL`, `ADMIN_EMAIL` e `ADMIN_PASSWORD` no ambiente de produção.
 6. Faça o primeiro startup com banco vazio para aplicar os seeds novos.
+7. Após o login admin, use `/admin/identidade` para substituir logo/banner sem editar código.
 
 ---
 
@@ -1188,13 +1226,12 @@ Nunca commite credenciais Cloudinary.
 
 ### P2 — Média prioridade (funcionalidade)
 
-6. **Tela de configurações white-label no admin** (com os campos do `STORE_CONFIG` movidos para uma coleção `store_settings`).
-7. **Cupom de desconto** (admin cria código → aplicado no checkout).
-8. **Frete grátis acima de R$ X** por área de entrega.
-9. **Mercado Pago / Stripe** para pagamento online (hoje todos métodos são "pagar no momento da entrega" ou Pix manual).
-10. **Notificação ao admin** quando entrar pedido novo (push do navegador ou e-mail via Resend/SendGrid).
-11. **Reset de senha por e-mail** (envio de link com token de uso único).
-12. **Múltiplos endereços salvos** no perfil do cliente (campo `addresses` já existe na model, falta UI).
+6. **Cupom de desconto** (admin cria código → aplicado no checkout).
+7. **Frete grátis acima de R$ X** por área de entrega.
+8. **Mercado Pago / Stripe** para pagamento online (hoje todos métodos são "pagar no momento da entrega" ou Pix manual).
+9. **Notificação ao admin** quando entrar pedido novo (push do navegador ou e-mail via Resend/SendGrid).
+10. **Reset de senha por e-mail** (envio de link com token de uso único).
+11. **Múltiplos endereços salvos** no perfil do cliente (campo `addresses` já existe na model, falta UI).
 
 ### P3 — Baixa prioridade (polimento)
 

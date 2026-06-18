@@ -114,3 +114,41 @@ def test_oversized_product_image_is_rejected(monkeypatch):
     assert response.status_code == 400
     assert "maior que o limite" in response.json()["detail"]
     server.app.dependency_overrides.clear()
+
+
+def test_guest_cannot_upload_store_branding_image(monkeypatch):
+    server = import_server(monkeypatch)
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/api/admin/store-settings/upload-image?image_type=logo",
+        files=valid_png_file(),
+    )
+
+    assert response.status_code == 401
+
+
+def test_admin_can_upload_store_banner(monkeypatch):
+    server = import_server(monkeypatch)
+    server.app.dependency_overrides[server.require_admin] = lambda: {
+        "id": "admin-id",
+        "role": "admin",
+    }
+    monkeypatch.setattr(
+        server.cloudinary.uploader,
+        "upload",
+        lambda *args, **kwargs: {"secure_url": "https://res.cloudinary.com/demo/banner.png"},
+    )
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/api/admin/store-settings/upload-image?image_type=banner",
+        files=valid_png_file(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "image_url": "https://res.cloudinary.com/demo/banner.png",
+        "image_type": "banner",
+    }
+    server.app.dependency_overrides.clear()

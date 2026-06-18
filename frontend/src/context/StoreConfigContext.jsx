@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import api from "@/lib/api";
 import { STORE_CONFIG_FALLBACK } from "@/whiteLabelDefaults";
 
@@ -63,23 +63,31 @@ function applyBrandColors(config) {
 export function StoreCfgProvider({ children }) {
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const refreshConfig = useCallback(async () => {
+    const { data } = await api.get("/config");
+    setConfig(data);
+    return data;
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await api.get("/config");
-        setConfig(data);
+        await refreshConfig();
       } catch {
         setConfig(STORE_CONFIG_FALLBACK);
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [refreshConfig]);
   useEffect(() => {
     if (config) applyBrandColors(config);
   }, [config]);
   return (
-    <StoreCfgContext.Provider value={{ config, loading }}>{children}</StoreCfgContext.Provider>
+    <StoreCfgContext.Provider value={{ config, loading, refreshConfig }}>
+      {children}
+    </StoreCfgContext.Provider>
   );
 }
 

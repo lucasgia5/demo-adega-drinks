@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Package, PackageOpen, Tag, ClipboardList, LogOut, Store, Truck } from "lucide-react";
+import { LayoutDashboard, Package, PackageOpen, Settings, Tag, ClipboardList, LogOut, Store, Truck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useStoreConfig } from "@/context/StoreConfigContext";
 import { STORE_CONFIG_FALLBACK } from "@/whiteLabelDefaults";
@@ -11,6 +11,7 @@ const NAV = [
   { to: "/admin/categorias", label: "Categorias", icon: Tag },
   { to: "/admin/pedidos", label: "Pedidos", icon: ClipboardList },
   { to: "/admin/areas", label: "Áreas de entrega", icon: Truck },
+  { to: "/admin/identidade", label: "Identidade", icon: Settings },
 ];
 
 export default function AdminLayout({ title, children, actions }) {

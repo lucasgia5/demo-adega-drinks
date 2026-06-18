@@ -63,7 +63,8 @@ class TestPublic:
         r = s.get(f"{API}/config")
         assert r.status_code == 200
         d = r.json()
-        assert d["name"] == "Adega do Vinho"
+        assert d["name"]
+        assert d["store_name"] == d["name"]
         assert d["whatsapp_number"] == "5511999990000"
         assert d["primary_color"].startswith("#")
         assert "pix_key" in d
