@@ -1,7 +1,7 @@
 """White-label brand configuration.
 
 For a new store, this is the main file to edit for brand identity:
-name, logo, colors, banner, WhatsApp, Pix, address and public domain.
+name, logo, colors, banner, WhatsApp, Pix, address, public domain and age gate.
 
 Example for a frame store:
 - name: "Galeria dos Quadros"
@@ -27,4 +27,11 @@ STORE_CONFIG = {
     "currency_code": "BRL",
     "delivery_note": "Entrega em até 60min na sua região",
     "checkout_note": "Seu pedido será aberto no WhatsApp da loja já preenchido.",
+    "age_gate_enabled": True,
+    "age_gate_min_age": 18,
+    "age_gate_title": "Você tem 18 anos ou mais?",
+    "age_gate_message": (
+        "Para acessar esta loja, confirme que você tem idade legal "
+        "para consumir bebidas alcoólicas."
+    ),
 }

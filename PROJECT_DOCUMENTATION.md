@@ -208,6 +208,7 @@ Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redire
 - Filtra os produtos em memória (`useMemo`) — não dispara nova request por filtro.
 - Renderiza hero com banner (vindo de `STORE_CONFIG.banner_url`), barra sticky de categorias carregadas de `/api/categories` e grade de `ProductCard`.
 - A barra de categorias fica abaixo do header ao rolar, mantém "Todos", destaca a categoria ativa e usa overflow horizontal suave no mobile. Busca e categoria continuam sendo aplicadas juntas no filtro em memória.
+- Quando `STORE_CONFIG.age_gate_enabled` está ativo, exibe confirmação bloqueante de idade antes do acesso à vitrine. A confirmação é persistida em `localStorage.white_label_age_confirmed`; a recusa mantém o acesso bloqueado e não redireciona para sites externos.
 
 #### `ProductDetail.jsx`
 - `GET /api/products/:id`. Permite escolher quantidade e adicionar ao carrinho.
@@ -897,6 +898,11 @@ O guia operacional completo fica em `WHITE_LABEL_REBRANDING.md`.
 | `public_domain` | Domínio público da loja |
 | `currency_symbol` / `currency_code` | Config de moeda |
 | `delivery_note` | Texto curto do hero |
+| `checkout_note` | Texto abaixo do botão de confirmação do pedido |
+| `age_gate_enabled` | Ativa ou desativa a confirmação de maioridade na vitrine |
+| `age_gate_min_age` | Idade mínima exibida no modal |
+| `age_gate_title` | Título do modal de confirmação de idade |
+| `age_gate_message` | Texto explicativo do modal de confirmação de idade |
 
 ### 10.3. Rebranding para loja de quadros
 

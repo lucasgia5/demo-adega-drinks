@@ -13,4 +13,8 @@ export const STORE_CONFIG_FALLBACK = {
   delivery_note: "",
   checkout_note: "Seu pedido será aberto no WhatsApp da loja já preenchido.",
   public_domain: "",
+  age_gate_enabled: false,
+  age_gate_min_age: 18,
+  age_gate_title: "Confirmação de idade",
+  age_gate_message: "Confirme que você possui a idade mínima exigida para acessar esta loja.",
 };

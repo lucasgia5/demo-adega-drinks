@@ -28,6 +28,28 @@ Para criar uma loja de quadros, altere os arquivos e variáveis abaixo antes do 
 | URL real do backend | variável `REACT_APP_BACKEND_URL` no frontend |
 | Credenciais admin seed | variáveis `ADMIN_EMAIL` e `ADMIN_PASSWORD` no backend |
 
+## Confirmação de Idade
+
+Para adegas ou lojas que exigem maioridade, configure em `backend/store_config.py`:
+
+```python
+"age_gate_enabled": True,
+"age_gate_min_age": 18,
+"age_gate_title": "Você tem 18 anos ou mais?",
+"age_gate_message": (
+    "Para acessar esta loja, confirme que você tem idade legal "
+    "para consumir bebidas alcoólicas."
+),
+```
+
+Para lojas sem restrição de idade, use:
+
+```python
+"age_gate_enabled": False,
+```
+
+Quando ativo, o frontend bloqueia a vitrine até a confirmação e salva o aceite em `localStorage.white_label_age_confirmed`.
+
 ## 1. Nome da Loja
 
 Edite `backend/store_config.py`:
@@ -182,6 +204,7 @@ Use uma senha forte e única por loja. Se `ADMIN_PASSWORD`, `JWT_SECRET`, `MONGO
 - [ ] Alterar cores em `frontend/src/index.css`.
 - [ ] Alterar cores em `frontend/tailwind.config.js`.
 - [ ] Alterar fallback em `frontend/src/whiteLabelDefaults.js`.
+- [ ] Ativar ou desativar o age gate conforme o tipo de loja.
 - [ ] Configurar Cloudinary com pasta/prefixo próprio.
 - [ ] Configurar `FRONTEND_URL`.
 - [ ] Configurar `REACT_APP_BACKEND_URL`.

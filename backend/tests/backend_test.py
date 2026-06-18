@@ -67,6 +67,10 @@ class TestPublic:
         assert d["whatsapp_number"] == "5511999990000"
         assert d["primary_color"].startswith("#")
         assert "pix_key" in d
+        assert d["age_gate_enabled"] is True
+        assert d["age_gate_min_age"] == 18
+        assert d["age_gate_title"]
+        assert d["age_gate_message"]
 
     def test_categories_seed(self, s):
         r = s.get(f"{API}/categories")

@@ -3,6 +3,7 @@ import api from "@/lib/api";
 import Header from "@/components/Header";
 import ProductCard from "@/components/ProductCard";
 import CartDrawer from "@/components/CartDrawer";
+import AgeGate from "@/components/AgeGate";
 import { useStoreConfig } from "@/context/StoreConfigContext";
 import { STORE_CONFIG_FALLBACK } from "@/whiteLabelDefaults";
 import { MapPin, Truck } from "lucide-react";
@@ -13,7 +14,7 @@ export default function Storefront() {
   const [activeCat, setActiveCat] = useState("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const { config } = useStoreConfig();
+  const { config, loading: configLoading } = useStoreConfig();
 
   useEffect(() => {
     (async () => {
@@ -41,6 +42,7 @@ export default function Storefront() {
 
   return (
     <div className="min-h-screen bg-brand-cream">
+      <AgeGate config={config} loading={configLoading} />
       <Header search={search} setSearch={setSearch} />
 
       {/* Hero */}
