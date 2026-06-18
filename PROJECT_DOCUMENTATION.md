@@ -209,6 +209,7 @@ Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redire
 - Renderiza hero com banner (vindo de `STORE_CONFIG.banner_url`), barra sticky de categorias carregadas de `/api/categories` e grade de `ProductCard`.
 - A barra de categorias fica abaixo do header ao rolar, mantém "Todos", destaca a categoria ativa e usa overflow horizontal suave no mobile. Busca e categoria continuam sendo aplicadas juntas no filtro em memória.
 - Quando `STORE_CONFIG.age_gate_enabled` está ativo, exibe confirmação bloqueante de idade antes do acesso à vitrine. A confirmação é persistida em `localStorage.white_label_age_confirmed`; a recusa mantém o acesso bloqueado e não redireciona para sites externos.
+- Quando `business_hours_enabled` está ativo, calcula o status no fuso configurado e exibe no hero "Aberto agora"/"Fechado agora", acompanhado de "Abre às"/"Fecha às".
 
 #### `ProductDetail.jsx`
 - `GET /api/products/:id`. Permite escolher quantidade e adicionar ao carrinho.
@@ -217,6 +218,7 @@ Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redire
 - Lê o carrinho do `CartContext` e permite escolher entre `delivery` (Entrega) e `pickup` (Retirada no local).
 - Em entrega, exibe Resumo (Subtotal, Taxa de entrega, Total), busca áreas ativas em `GET /api/delivery-areas` e mantém a validação de `min_order`.
 - Em retirada, oculta a seleção de área, ignora pedido mínimo por região, usa `delivery_fee=0` e `total=subtotal`.
+- Se o horário de funcionamento estiver ativo e a loja estiver fechada, mostra um aviso informativo antes do formulário. O pedido continua permitido e a mensagem do WhatsApp registra o status da loja naquele momento.
 - No submit:
   1. `POST /api/orders` com `{ customer_name, customer_phone, customer_address, fulfillment_type, delivery_area_id, payment_method, items, observations }`.
   2. Constrói mensagem WhatsApp via `formatWhatsAppMessage(order)`.
@@ -908,6 +910,9 @@ O guia operacional completo fica em `WHITE_LABEL_REBRANDING.md`.
 | `age_gate_min_age` | Idade mínima exibida no modal |
 | `age_gate_title` | Título do modal de confirmação de idade |
 | `age_gate_message` | Texto explicativo do modal de confirmação de idade |
+| `business_hours_enabled` | Ativa ou desativa o status de funcionamento |
+| `business_hours_timezone` | Fuso IANA usado no cálculo, por exemplo `America/Sao_Paulo` |
+| `business_hours` | Agenda por dia com `open`, `close` e `closed` |
 
 ### 10.3. Rebranding para loja de quadros
 

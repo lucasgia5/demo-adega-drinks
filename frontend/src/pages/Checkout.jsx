@@ -4,6 +4,7 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useStoreConfig } from "@/context/StoreConfigContext";
 import { STORE_CONFIG_FALLBACK } from "@/whiteLabelDefaults";
+import { calculateBusinessStatus, useBusinessStatus } from "@/hooks/useBusinessStatus";
 import api, { brl, formatApiErrorDetail } from "@/lib/api";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, MapPin, Store } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Copy, MapPin, Store } from "lucide-react";
 
 const PAYMENT_LABELS = {
   pix: "Pix",
@@ -32,6 +33,7 @@ export default function Checkout() {
   const { items, total: subtotal, clear } = useCart();
   const { user } = useAuth();
   const { config } = useStoreConfig();
+  const businessStatus = useBusinessStatus(config);
   const navigate = useNavigate();
 
   const [areas, setAreas] = useState([]);
@@ -74,8 +76,16 @@ export default function Checkout() {
 
   const formatWhatsAppMessage = (order) => {
     const lines = [];
+    const orderBusinessStatus = calculateBusinessStatus(config, new Date());
     lines.push(`*Novo Pedido - ${config?.name || STORE_CONFIG_FALLBACK.name}*`);
     lines.push(`*Tipo:* ${FULFILLMENT_LABELS[order.fulfillment_type || "delivery"]}`);
+    if (orderBusinessStatus) {
+      lines.push(
+        `*Status da loja no momento do pedido:* ${
+          orderBusinessStatus.isOpen ? "Aberta" : "Fechada"
+        }`
+      );
+    }
     lines.push("");
     lines.push(`*Cliente:* ${order.customer_name}`);
     lines.push(`*Telefone:* ${order.customer_phone}`);
@@ -174,6 +184,22 @@ export default function Checkout() {
 
         <form onSubmit={placeOrder} className="grid lg:grid-cols-3 gap-6 mt-8">
           <div className="lg:col-span-2 space-y-6">
+            {businessStatus && !businessStatus.isOpen && (
+              <div
+                className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900"
+                role="status"
+                data-testid="business-closed-warning"
+              >
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <p className="font-medium">A loja está fechada agora.</p>
+                  <p className="mt-1 text-sm text-amber-800">
+                    Seu pedido poderá ser respondido no próximo horário de funcionamento.
+                    {businessStatus.timingLabel ? ` ${businessStatus.timingLabel}.` : ""}
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="bg-white rounded-2xl border border-stone-200 p-6">
               <h2 className="font-serif text-xl font-semibold mb-4">Como você quer receber?</h2>
               <RadioGroup

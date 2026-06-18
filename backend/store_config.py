@@ -1,7 +1,8 @@
 """White-label brand configuration.
 
 For a new store, this is the main file to edit for brand identity:
-name, logo, colors, banner, WhatsApp, Pix, address, public domain and age gate.
+name, logo, colors, banner, WhatsApp, Pix, address, public domain,
+age gate and business hours.
 
 Example for a frame store:
 - name: "Galeria dos Quadros"
@@ -34,4 +35,15 @@ STORE_CONFIG = {
         "Para acessar esta loja, confirme que você tem idade legal "
         "para consumir bebidas alcoólicas."
     ),
+    "business_hours_enabled": True,
+    "business_hours_timezone": "America/Sao_Paulo",
+    "business_hours": {
+        "monday": {"open": "10:00", "close": "22:00", "closed": False},
+        "tuesday": {"open": "10:00", "close": "22:00", "closed": False},
+        "wednesday": {"open": "10:00", "close": "22:00", "closed": False},
+        "thursday": {"open": "10:00", "close": "22:00", "closed": False},
+        "friday": {"open": "10:00", "close": "23:00", "closed": False},
+        "saturday": {"open": "10:00", "close": "23:00", "closed": False},
+        "sunday": {"open": "10:00", "close": "18:00", "closed": False},
+    },
 }

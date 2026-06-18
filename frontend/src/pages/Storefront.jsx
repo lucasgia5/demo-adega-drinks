@@ -6,7 +6,8 @@ import CartDrawer from "@/components/CartDrawer";
 import AgeGate from "@/components/AgeGate";
 import { useStoreConfig } from "@/context/StoreConfigContext";
 import { STORE_CONFIG_FALLBACK } from "@/whiteLabelDefaults";
-import { MapPin, Truck } from "lucide-react";
+import { useBusinessStatus } from "@/hooks/useBusinessStatus";
+import { Clock3, MapPin, Truck } from "lucide-react";
 
 export default function Storefront() {
   const [categories, setCategories] = useState([]);
@@ -15,6 +16,7 @@ export default function Storefront() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const { config, loading: configLoading } = useStoreConfig();
+  const businessStatus = useBusinessStatus(config);
 
   useEffect(() => {
     (async () => {
@@ -64,6 +66,24 @@ export default function Storefront() {
             {config?.name || STORE_CONFIG_FALLBACK.name}
           </h1>
           <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-white/90 text-sm">
+            {businessStatus && (
+              <span
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-medium ${
+                  businessStatus.isOpen
+                    ? "bg-emerald-500/90 text-white"
+                    : "bg-stone-950/75 text-white"
+                }`}
+                data-testid="business-status"
+              >
+                <Clock3 className="h-4 w-4" />
+                <span>{businessStatus.statusLabel}</span>
+                {businessStatus.timingLabel && (
+                  <span className="font-normal text-white/80">
+                    · {businessStatus.timingLabel}
+                  </span>
+                )}
+              </span>
+            )}
             {config?.address && (
               <span className="flex items-center gap-1.5">
                 <MapPin className="h-4 w-4" /> {config.address}

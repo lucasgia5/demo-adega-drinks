@@ -17,4 +17,7 @@ export const STORE_CONFIG_FALLBACK = {
   age_gate_min_age: 18,
   age_gate_title: "Confirmação de idade",
   age_gate_message: "Confirme que você possui a idade mínima exigida para acessar esta loja.",
+  business_hours_enabled: false,
+  business_hours_timezone: "America/Sao_Paulo",
+  business_hours: {},
 };

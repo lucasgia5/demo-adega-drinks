@@ -50,6 +50,38 @@ Para lojas sem restrição de idade, use:
 
 Quando ativo, o frontend bloqueia a vitrine até a confirmação e salva o aceite em `localStorage.white_label_age_confirmed`.
 
+## Horário de Funcionamento
+
+Configure os horários em `backend/store_config.py`:
+
+```python
+"business_hours_enabled": True,
+"business_hours_timezone": "America/Sao_Paulo",
+"business_hours": {
+    "monday": {"open": "10:00", "close": "22:00", "closed": False},
+    "tuesday": {"open": "10:00", "close": "22:00", "closed": False},
+    "wednesday": {"open": "10:00", "close": "22:00", "closed": False},
+    "thursday": {"open": "10:00", "close": "22:00", "closed": False},
+    "friday": {"open": "10:00", "close": "23:00", "closed": False},
+    "saturday": {"open": "10:00", "close": "23:00", "closed": False},
+    "sunday": {"open": "10:00", "close": "18:00", "closed": False},
+},
+```
+
+Use horários no formato `HH:mm` e um fuso válido da base IANA. Para marcar um dia sem atendimento:
+
+```python
+"sunday": {"open": "00:00", "close": "00:00", "closed": True},
+```
+
+Se a loja não quiser exibir status ou avisos de funcionamento:
+
+```python
+"business_hours_enabled": False,
+```
+
+Quando ativo, o frontend mostra o status na vitrine, avisa no checkout quando a loja está fechada e inclui o status na mensagem do WhatsApp. O aviso não bloqueia pedidos.
+
 ## 1. Nome da Loja
 
 Edite `backend/store_config.py`:
@@ -205,6 +237,7 @@ Use uma senha forte e única por loja. Se `ADMIN_PASSWORD`, `JWT_SECRET`, `MONGO
 - [ ] Alterar cores em `frontend/tailwind.config.js`.
 - [ ] Alterar fallback em `frontend/src/whiteLabelDefaults.js`.
 - [ ] Ativar ou desativar o age gate conforme o tipo de loja.
+- [ ] Configurar horário de funcionamento e fuso da loja.
 - [ ] Configurar Cloudinary com pasta/prefixo próprio.
 - [ ] Configurar `FRONTEND_URL`.
 - [ ] Configurar `REACT_APP_BACKEND_URL`.

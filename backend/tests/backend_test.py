@@ -71,6 +71,12 @@ class TestPublic:
         assert d["age_gate_min_age"] == 18
         assert d["age_gate_title"]
         assert d["age_gate_message"]
+        assert d["business_hours_enabled"] is True
+        assert d["business_hours_timezone"] == "America/Sao_Paulo"
+        assert set(d["business_hours"]) == {
+            "monday", "tuesday", "wednesday", "thursday",
+            "friday", "saturday", "sunday",
+        }
 
     def test_categories_seed(self, s):
         r = s.get(f"{API}/categories")
