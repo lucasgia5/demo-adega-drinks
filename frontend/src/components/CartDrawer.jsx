@@ -36,10 +36,14 @@ export default function CartDrawer() {
             </div>
           )}
 
-          {items.map((item) => (
+          {items.map((item) => {
+            const itemKey =
+              item.cart_key ||
+              `${item.item_type || "product"}:${item.combo_id || item.product_id}`;
+            return (
             <div
-              key={item.product_id}
-              data-testid={`cart-item-${item.product_id}`}
+              key={itemKey}
+              data-testid={`cart-item-${itemKey}`}
               className="flex gap-3 bg-white rounded-xl p-3 border border-stone-100"
             >
               <div className="w-16 h-16 rounded-lg overflow-hidden bg-stone-100 shrink-0">
@@ -48,31 +52,43 @@ export default function CartDrawer() {
                 ) : null}
               </div>
               <div className="flex-1 min-w-0">
+                {item.item_type === "combo" && (
+                  <span className="mb-1 inline-flex rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand">
+                    Combo
+                  </span>
+                )}
                 <p className="font-medium text-sm text-stone-900 line-clamp-2">{item.name}</p>
+                {item.item_type === "combo" && item.combo_items?.length > 0 && (
+                  <p className="mt-1 line-clamp-2 text-xs text-stone-500">
+                    {item.combo_items
+                      .map((comboItem) => `${comboItem.quantity}x ${comboItem.name}`)
+                      .join(" · ")}
+                  </p>
+                )}
                 <p className="text-xs text-stone-500 mt-0.5">{brl(item.unit_price)} un.</p>
                 <div className="mt-2 flex items-center gap-2">
                   <button
-                    data-testid={`qty-decrease-${item.product_id}`}
-                    onClick={() => setQty(item.product_id, item.quantity - 1)}
+                    data-testid={`qty-decrease-${itemKey}`}
+                    onClick={() => setQty(itemKey, item.quantity - 1)}
                     className="h-7 w-7 grid place-items-center rounded-md border border-stone-200 hover:bg-stone-50"
                     aria-label="Diminuir"
                   >
                     <Minus className="h-3 w-3" />
                   </button>
-                  <span className="text-sm font-semibold w-6 text-center" data-testid={`qty-value-${item.product_id}`}>
+                  <span className="text-sm font-semibold w-6 text-center" data-testid={`qty-value-${itemKey}`}>
                     {item.quantity}
                   </span>
                   <button
-                    data-testid={`qty-increase-${item.product_id}`}
-                    onClick={() => setQty(item.product_id, item.quantity + 1)}
+                    data-testid={`qty-increase-${itemKey}`}
+                    onClick={() => setQty(itemKey, item.quantity + 1)}
                     className="h-7 w-7 grid place-items-center rounded-md border border-stone-200 hover:bg-stone-50"
                     aria-label="Aumentar"
                   >
                     <Plus className="h-3 w-3" />
                   </button>
                   <button
-                    data-testid={`remove-item-${item.product_id}`}
-                    onClick={() => remove(item.product_id)}
+                    data-testid={`remove-item-${itemKey}`}
+                    onClick={() => remove(itemKey)}
                     className="ml-auto h-7 w-7 grid place-items-center rounded-md text-stone-400 hover:text-red-600"
                     aria-label="Remover"
                   >
@@ -84,7 +100,7 @@ export default function CartDrawer() {
                 {brl(item.unit_price * item.quantity)}
               </div>
             </div>
-          ))}
+          )})}
         </div>
 
         <div className="border-t border-stone-200 bg-white p-5 space-y-3">

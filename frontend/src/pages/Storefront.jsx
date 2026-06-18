@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import api from "@/lib/api";
 import Header from "@/components/Header";
 import ProductCard from "@/components/ProductCard";
+import ComboCard from "@/components/ComboCard";
 import CartDrawer from "@/components/CartDrawer";
 import AgeGate from "@/components/AgeGate";
 import { useStoreConfig } from "@/context/StoreConfigContext";
@@ -12,6 +13,7 @@ import { Clock3, MapPin, Truck } from "lucide-react";
 export default function Storefront() {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
+  const [combos, setCombos] = useState([]);
   const [activeCat, setActiveCat] = useState("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -21,12 +23,14 @@ export default function Storefront() {
   useEffect(() => {
     (async () => {
       try {
-        const [{ data: cats }, { data: prods }] = await Promise.all([
+        const [{ data: cats }, { data: prods }, { data: activeCombos }] = await Promise.all([
           api.get("/categories"),
           api.get("/products"),
+          api.get("/combos"),
         ]);
         setCategories(cats);
         setProducts(prods);
+        setCombos(activeCombos);
       } finally {
         setLoading(false);
       }
@@ -97,6 +101,31 @@ export default function Storefront() {
           </div>
         </div>
       </section>
+
+      {combos.length > 0 && (
+        <section className="border-b border-stone-200 bg-white py-6" data-testid="weekly-combos">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-4 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-brand">
+                  Ofertas especiais
+                </p>
+                <h2 className="font-serif text-2xl font-semibold text-stone-900 sm:text-3xl">
+                  Combos da Semana
+                </h2>
+              </div>
+              <span className="text-xs text-stone-500">
+                {combos.length} {combos.length === 1 ? "combo" : "combos"}
+              </span>
+            </div>
+            <div className="flex snap-x gap-4 overflow-x-auto pb-2 scrollbar-hide sm:grid sm:grid-cols-2 lg:grid-cols-3">
+              {combos.map((combo) => (
+                <ComboCard key={combo.id} combo={combo} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Sticky categories */}
       <section

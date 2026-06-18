@@ -214,7 +214,29 @@ Exemplo:
 
 O seed roda apenas quando a coleção `categories` está vazia. Em produção, ajuste antes do primeiro startup ou limpe o banco de teste antes de reseedar.
 
-## 9. Domínio
+## 9. Combos da Semana
+
+Depois de cadastrar os produtos da loja, acesse `/admin/combos` para criar combos promocionais.
+
+Para cada combo, configure:
+
+- nome e descrição;
+- imagem opcional;
+- produtos vinculados e quantidade de cada produto;
+- preço promocional;
+- ativo/inativo;
+- ordem de exibição.
+
+O frontend envia ao checkout apenas `combo_id` e `quantity`. O backend busca o combo no MongoDB, valida todos os produtos e calcula o preço. Se qualquer produto ficar indisponível, o combo deixa de aparecer na home e sua compra é bloqueada.
+
+Sugestões por segmento:
+
+- Adega: combo churrasco, combo vinho + petiscos, kit degustação.
+- Conveniência: combo lanche, combo cinema, kit café da manhã.
+- Distribuidora: fardos mistos e kits para eventos.
+- Loja de quadros: conjunto de quadros coordenados ou composição de parede.
+
+## 10. Domínio
 
 Backend:
 
@@ -236,7 +258,7 @@ Também ajuste:
 
 em `backend/store_config.py`.
 
-## 10. Credenciais Admin
+## 11. Credenciais Admin
 
 Configure no ambiente do backend:
 
@@ -254,6 +276,7 @@ Use uma senha forte e única por loja. Se `ADMIN_PASSWORD`, `JWT_SECRET`, `MONGO
 - [ ] Criar repositório novo a partir do template.
 - [ ] Alterar `backend/store_config.py`.
 - [ ] Alterar `backend/seed_config.py`.
+- [ ] Cadastrar e ordenar combos em `/admin/combos`.
 - [ ] Criar `DB_NAME` próprio por loja.
 - [ ] Alterar cores em `frontend/src/index.css`.
 - [ ] Alterar cores em `frontend/tailwind.config.js`.

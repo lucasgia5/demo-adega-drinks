@@ -19,17 +19,24 @@ export function CartProvider({ children }) {
   const effectivePrice = (p) =>
     p.promo_active && p.promo_price != null ? Number(p.promo_price) : Number(p.price);
 
+  const cartKey = (item) =>
+    item.cart_key ||
+    `${item.item_type || "product"}:${item.combo_id || item.product_id}`;
+
   const add = (product, qty = 1) => {
     setItems((curr) => {
-      const found = curr.find((i) => i.product_id === product.id);
+      const key = `product:${product.id}`;
+      const found = curr.find((i) => cartKey(i) === key);
       if (found) {
         return curr.map((i) =>
-          i.product_id === product.id ? { ...i, quantity: i.quantity + qty } : i
+          cartKey(i) === key ? { ...i, quantity: i.quantity + qty } : i
         );
       }
       return [
         ...curr,
         {
+          cart_key: key,
+          item_type: "product",
           product_id: product.id,
           name: product.name,
           image_url: product.image_url,
@@ -41,13 +48,39 @@ export function CartProvider({ children }) {
     setIsOpen(true);
   };
 
-  const remove = (productId) =>
-    setItems((curr) => curr.filter((i) => i.product_id !== productId));
-
-  const setQty = (productId, qty) =>
+  const addCombo = (combo, qty = 1) => {
     setItems((curr) => {
-      if (qty <= 0) return curr.filter((i) => i.product_id !== productId);
-      return curr.map((i) => (i.product_id === productId ? { ...i, quantity: qty } : i));
+      const key = `combo:${combo.id}`;
+      const found = curr.find((i) => cartKey(i) === key);
+      if (found) {
+        return curr.map((i) =>
+          cartKey(i) === key ? { ...i, quantity: i.quantity + qty } : i
+        );
+      }
+      return [
+        ...curr,
+        {
+          cart_key: key,
+          item_type: "combo",
+          combo_id: combo.id,
+          name: combo.name,
+          image_url: combo.image_url,
+          unit_price: Number(combo.promotional_price),
+          combo_items: combo.resolved_products || [],
+          quantity: qty,
+        },
+      ];
+    });
+    setIsOpen(true);
+  };
+
+  const remove = (itemKey) =>
+    setItems((curr) => curr.filter((i) => cartKey(i) !== itemKey));
+
+  const setQty = (itemKey, qty) =>
+    setItems((curr) => {
+      if (qty <= 0) return curr.filter((i) => cartKey(i) !== itemKey);
+      return curr.map((i) => (cartKey(i) === itemKey ? { ...i, quantity: qty } : i));
     });
 
   const clear = () => setItems([]);
@@ -63,7 +96,7 @@ export function CartProvider({ children }) {
 
   return (
     <CartContext.Provider
-      value={{ items, total, count, add, remove, setQty, clear, isOpen, setIsOpen }}
+      value={{ items, total, count, add, addCombo, remove, setQty, clear, isOpen, setIsOpen }}
     >
       {children}
     </CartContext.Provider>

@@ -14,6 +14,7 @@ import Account from "@/pages/Account";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminProducts from "@/pages/admin/Products";
+import AdminCombos from "@/pages/admin/Combos";
 import AdminCategories from "@/pages/admin/Categories";
 import AdminOrders from "@/pages/admin/Orders";
 import AdminDeliveryAreas from "@/pages/admin/DeliveryAreas";
@@ -42,6 +43,9 @@ function App() {
                 } />
                 <Route path="/admin/produtos" element={
                   <ProtectedRoute requireAdmin><AdminProducts /></ProtectedRoute>
+                } />
+                <Route path="/admin/combos" element={
+                  <ProtectedRoute requireAdmin><AdminCombos /></ProtectedRoute>
                 } />
                 <Route path="/admin/categorias" element={
                   <ProtectedRoute requireAdmin><AdminCategories /></ProtectedRoute>

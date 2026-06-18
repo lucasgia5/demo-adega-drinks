@@ -126,6 +126,7 @@ Coleções: `users`, `categories`, `products`, `orders`, `delivery_areas`.
 │       │   ├── ui/                # shadcn (NÃO MODIFICAR sem necessidade)
 │       │   ├── Header.jsx         # cabeçalho do storefront
 │       │   ├── ProductCard.jsx    # card de produto (com promo)
+│       │   ├── ComboCard.jsx      # card de combo promocional
 │       │   ├── CartDrawer.jsx     # gaveta do carrinho
 │       │   ├── AdminLayout.jsx    # layout do painel admin (sidebar + header)
 │       │   └── ProtectedRoute.jsx # guard de rotas (cliente / admin)
@@ -140,6 +141,7 @@ Coleções: `users`, `categories`, `products`, `orders`, `delivery_areas`.
 │           └── admin/
 │               ├── Dashboard.jsx
 │               ├── Products.jsx
+│               ├── Combos.jsx
 │               ├── Categories.jsx
 │               ├── Orders.jsx
 │               └── DeliveryAreas.jsx
@@ -203,13 +205,14 @@ Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redire
 ### 3.2. Páginas
 
 #### `Storefront.jsx`
-- Faz `GET /api/categories` e `GET /api/products` em paralelo no mount.
+- Faz `GET /api/categories`, `GET /api/products` e `GET /api/combos` em paralelo no mount.
 - Mantém estado local: `activeCat` (id da categoria) e `search` (string).
 - Filtra os produtos em memória (`useMemo`) — não dispara nova request por filtro.
 - Renderiza hero com banner (vindo de `STORE_CONFIG.banner_url`), barra sticky de categorias carregadas de `/api/categories` e grade de `ProductCard`.
 - A barra de categorias fica abaixo do header ao rolar, mantém "Todos", destaca a categoria ativa e usa overflow horizontal suave no mobile. Busca e categoria continuam sendo aplicadas juntas no filtro em memória.
 - Quando `STORE_CONFIG.age_gate_enabled` está ativo, exibe confirmação bloqueante de idade antes do acesso à vitrine. A confirmação é persistida em `localStorage.white_label_age_confirmed`; a recusa mantém o acesso bloqueado e não redireciona para sites externos.
 - Quando `business_hours_enabled` está ativo, calcula o status no fuso configurado e exibe no hero "Aberto agora"/"Fechado agora", acompanhado de "Abre às"/"Fecha às".
+- Combos ativos e compráveis aparecem na seção "Combos da Semana", ordenados por `display_order`. Combos com produtos ausentes ou indisponíveis não são retornados pela API pública.
 
 #### `ProductDetail.jsx`
 - `GET /api/products/:id`. Permite escolher quantidade e adicionar ao carrinho.
@@ -240,6 +243,10 @@ Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redire
 
 #### `admin/Products.jsx`
 - Tabela com produtos. Dialog (modal shadcn) para criar/editar com campo manual de URL de imagem e upload direto para Cloudinary. Ao escolher um arquivo, o frontend chama `POST /api/admin/products/upload-image`, mostra prévia e preenche `image_url` com a URL segura retornada. Também mantém toggle "Disponível" e toggle "Ativar promoção" que revela campo de "Preço promocional".
+
+#### `admin/Combos.jsx`
+- CRUD de combos com nome, descrição, imagem opcional, produtos/quantidades, preço promocional, status e ordem de exibição.
+- O status público depende de `active=true` e da disponibilidade de todos os produtos vinculados.
 
 #### `admin/Categories.jsx`
 - Lista simples com create/edit/delete em dialog. Backend rejeita delete se houver produtos vinculados (HTTP 400).
@@ -459,7 +466,34 @@ Upload de imagem:
 - O MongoDB não salva binário; produtos continuam persistindo apenas `image_url`.
 - O painel admin usa a URL segura retornada pelo Cloudinary para preencher `image_url`.
 
-#### 4.5.5. Orders
+#### 4.5.5. Combos
+
+| Método | URL | Auth | Descrição |
+|---|---|---|---|
+| GET | `/api/combos` | — | Lista somente combos ativos com todos os produtos disponíveis. |
+| GET | `/api/admin/combos` | Admin | Lista todos os combos, incluindo status de compra. |
+| POST | `/api/admin/combos` | Admin | Cria combo. |
+| PUT | `/api/admin/combos/{id}` | Admin | Atualiza combo. |
+| DELETE | `/api/admin/combos/{id}` | Admin | Remove combo. |
+
+`ComboIn`:
+```json
+{
+  "name": "Combo Churrasco",
+  "description": "Seleção para o fim de semana",
+  "image_url": "https://...",
+  "products": [
+    { "product_id": "<uuid>", "quantity": 2 }
+  ],
+  "promotional_price": 99.90,
+  "active": true,
+  "display_order": 1
+}
+```
+
+O preço promocional do combo é lido exclusivamente do MongoDB durante a criação do pedido. O endpoint público não exibe combos com produto ausente ou indisponível, e o backend repete essa validação no checkout.
+
+#### 4.5.6. Orders
 
 | Método | URL | Auth | Descrição |
 |---|---|---|---|
@@ -479,12 +513,13 @@ Upload de imagem:
   "delivery_area_id": "<uuid|null>",
   "observations": "deixar com porteiro",
   "items": [
-    { "product_id": "<uuid>", "quantity": 2 }
+    { "item_type": "product", "product_id": "<uuid>", "quantity": 2 },
+    { "item_type": "combo", "combo_id": "<uuid>", "quantity": 1 }
   ]
 }
 ```
 
-O frontend envia somente `product_id` e `quantity` para cada item. O backend ignora qualquer campo de preço enviado pelo cliente (`price`, `unit_price`, `subtotal`, `total`), busca cada produto no MongoDB, valida disponibilidade e valores não negativos, escolhe `promo_price` quando `promo_active=true` e houver preço promocional, calcula `unit_price`, `subtotal`, `delivery_fee` e `total`, e salva no pedido apenas os valores calculados no servidor. Em `pickup`, a área enviada é ignorada e a taxa permanece zero. Em `delivery`, o backend aplica frete grátis quando a configuração está ativa e o subtotal atinge o mínimo. Status inicial = `"recebido"`.
+O frontend envia somente o tipo, o ID (`product_id` ou `combo_id`) e a quantidade. O backend ignora qualquer campo de preço enviado pelo cliente (`price`, `unit_price`, `subtotal`, `total`), busca produtos/combos no MongoDB, valida disponibilidade e calcula todos os valores. Para combos, persiste um snapshot em `combo_items`, preservando os produtos e quantidades que compunham o combo no momento do pedido. Em `pickup`, a área enviada é ignorada e a taxa permanece zero. Em `delivery`, o backend aplica frete grátis quando a configuração está ativa e o subtotal atinge o mínimo. Status inicial = `"recebido"`.
 
 `OrderStatusIn`: `{ "status": "recebido"|"em_preparo"|"saiu_entrega"|"entregue"|"cancelado" }`
 
@@ -637,6 +672,22 @@ Imagens de produtos não são salvas como binário no MongoDB. O banco mantém s
 
 Índices: `category_id` (para filtros).
 
+### 5.4.1. `combos`
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | string (UUID) | |
+| `name` | string | |
+| `description` | string | |
+| `image_url` | string | opcional |
+| `products` | array<object> | `{ product_id, quantity }` |
+| `promotional_price` | float | preço autoritativo do combo |
+| `active` | bool | controla publicação |
+| `display_order` | int | menor valor aparece primeiro |
+| `created_at` | ISO string | |
+
+Índice: `active + display_order`.
+
 ### 5.5. `orders`
 
 | Campo | Tipo | Notas |
@@ -647,7 +698,7 @@ Imagens de produtos não são salvas como binário no MongoDB. O banco mantém s
 | `customer_address` | string | |
 | `payment_method` | string | `pix` / `dinheiro` / `cartao` |
 | `fulfillment_type` | string | `delivery` / `pickup`; pedidos antigos sem o campo são tratados como `delivery` |
-| `items` | array<object> | Snapshot calculado pelo backend: `{ product_id, name, quantity, unit_price }` |
+| `items` | array<object> | Produto ou combo precificado pelo backend; combos incluem `combo_id` e `combo_items` |
 | `observations` | string | |
 | `subtotal` | float | soma dos itens |
 | `delivery_area_id` | string \| null | FK lógica para `delivery_areas.id` |

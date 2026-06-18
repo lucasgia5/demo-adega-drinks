@@ -105,7 +105,14 @@ export default function Checkout() {
     lines.push("");
     lines.push(`*Itens:*`);
     order.items.forEach((i) => {
-      lines.push(`• ${i.quantity}x ${i.name} — ${brl(i.unit_price * i.quantity)}`);
+      if (i.item_type === "combo") {
+        lines.push(`• ${i.quantity}x *COMBO* ${i.name} — ${brl(i.unit_price * i.quantity)}`);
+        i.combo_items?.forEach((comboItem) => {
+          lines.push(`  - ${comboItem.quantity}x ${comboItem.name} por combo`);
+        });
+      } else {
+        lines.push(`• ${i.quantity}x ${i.name} — ${brl(i.unit_price * i.quantity)}`);
+      }
     });
     lines.push("");
     lines.push(`*Subtotal:* ${brl(order.subtotal ?? subtotal)}`);
@@ -156,10 +163,19 @@ export default function Checkout() {
         payment_method: form.payment,
         fulfillment_type: form.fulfillment_type,
         delivery_area_id: isPickup ? null : form.delivery_area_id || null,
-        items: items.map((i) => ({
-          product_id: i.product_id,
-          quantity: i.quantity,
-        })),
+        items: items.map((i) =>
+          i.item_type === "combo"
+            ? {
+                item_type: "combo",
+                combo_id: i.combo_id,
+                quantity: i.quantity,
+              }
+            : {
+                item_type: "product",
+                product_id: i.product_id,
+                quantity: i.quantity,
+              }
+        ),
         observations: form.observations,
       };
       const { data: order } = await api.post("/orders", payload);
@@ -379,9 +395,21 @@ export default function Checkout() {
                   <p className="text-sm text-stone-500">Seu carrinho está vazio.</p>
                 )}
                 {items.map((i) => (
-                  <div key={i.product_id} className="flex justify-between text-sm">
-                    <span className="text-stone-700">{i.quantity}× {i.name}</span>
-                    <span className="font-medium">{brl(i.unit_price * i.quantity)}</span>
+                  <div
+                    key={i.cart_key || `${i.item_type || "product"}:${i.combo_id || i.product_id}`}
+                    className="flex justify-between gap-3 text-sm"
+                  >
+                    <span className="min-w-0 text-stone-700">
+                      {i.quantity}× {i.item_type === "combo" ? `Combo ${i.name}` : i.name}
+                      {i.item_type === "combo" && i.combo_items?.length > 0 && (
+                        <span className="mt-0.5 block truncate text-xs text-stone-500">
+                          {i.combo_items
+                            .map((comboItem) => `${comboItem.quantity}x ${comboItem.name}`)
+                            .join(" · ")}
+                        </span>
+                      )}
+                    </span>
+                    <span className="shrink-0 font-medium">{brl(i.unit_price * i.quantity)}</span>
                   </div>
                 ))}
               </div>

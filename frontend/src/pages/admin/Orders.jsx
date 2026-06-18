@@ -107,7 +107,16 @@ export default function Orders() {
                     <div className="bg-stone-50 rounded-xl divide-y divide-stone-100">
                       {o.items.map((i, idx) => (
                         <div key={idx} className="flex justify-between p-3 text-sm">
-                          <span>{i.quantity}× {i.name}</span>
+                          <span>
+                            {i.quantity}× {i.item_type === "combo" ? `Combo ${i.name}` : i.name}
+                            {i.item_type === "combo" && i.combo_items?.length > 0 && (
+                              <span className="mt-1 block text-xs text-stone-500">
+                                {i.combo_items
+                                  .map((comboItem) => `${comboItem.quantity}x ${comboItem.name}`)
+                                  .join(" · ")}
+                              </span>
+                            )}
+                          </span>
                           <span className="font-medium">{brl(i.unit_price * i.quantity)}</span>
                         </div>
                       ))}

@@ -289,14 +289,41 @@ class Product(ProductIn):
     created_at: str
 
 
-class OrderItemIn(BaseModel):
+class ComboProductIn(BaseModel):
     product_id: str
     quantity: int = Field(ge=1)
 
 
-class OrderItem(OrderItemIn):
+class ComboIn(BaseModel):
     name: str
+    description: Optional[str] = ""
+    image_url: str = ""
+    products: List[ComboProductIn]
+    promotional_price: float = Field(ge=0)
+    active: bool = True
+    display_order: int = Field(default=0, ge=0)
+
+
+class Combo(ComboIn):
+    id: str
+    created_at: str
+
+
+class OrderItemIn(BaseModel):
+    item_type: Literal["product", "combo"] = "product"
+    product_id: Optional[str] = None
+    combo_id: Optional[str] = None
+    quantity: int = Field(ge=1)
+
+
+class OrderItem(BaseModel):
+    item_type: Literal["product", "combo"] = "product"
+    product_id: Optional[str] = None
+    combo_id: Optional[str] = None
+    name: str
+    quantity: int = Field(ge=1)
     unit_price: float = Field(ge=0)  # actual price charged (promo or regular)
+    combo_items: List[dict] = Field(default_factory=list)
 
 
 class DeliveryAreaIn(BaseModel):
@@ -560,9 +587,109 @@ async def update_product(prod_id: str, payload: ProductIn, _: dict = Depends(req
 
 @api_router.delete("/products/{prod_id}")
 async def delete_product(prod_id: str, _: dict = Depends(require_admin)):
+    combo_in_use = await db.combos.find_one({"products.product_id": prod_id})
+    if combo_in_use:
+        raise HTTPException(status_code=400, detail="Produto vinculado a um combo")
     res = await db.products.delete_one({"id": prod_id})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Combos
+# ---------------------------------------------------------------------------
+async def resolve_combo_products(combo_products: List[dict]) -> tuple[List[dict], bool]:
+    resolved: List[dict] = []
+    purchasable = True
+
+    for combo_product in combo_products:
+        product = await db.products.find_one(
+            {"id": combo_product["product_id"]}, {"_id": 0}
+        )
+        if not product:
+            purchasable = False
+            continue
+        if not product.get("available", True):
+            purchasable = False
+        resolved.append({
+            "product_id": product["id"],
+            "name": product.get("name", ""),
+            "quantity": int(combo_product["quantity"]),
+            "available": product.get("available", True),
+        })
+
+    return resolved, purchasable and len(resolved) == len(combo_products)
+
+
+async def combo_response(combo: dict) -> dict:
+    resolved_products, purchasable = await resolve_combo_products(combo.get("products", []))
+    return {
+        **combo,
+        "resolved_products": resolved_products,
+        "purchasable": purchasable and bool(resolved_products),
+    }
+
+
+async def validate_combo_payload(payload: ComboIn) -> None:
+    if not payload.products:
+        raise HTTPException(status_code=400, detail="Combo deve possuir produtos")
+    product_ids = [item.product_id for item in payload.products]
+    products = await db.products.find(
+        {"id": {"$in": product_ids}}, {"_id": 0, "id": 1}
+    ).to_list(len(product_ids))
+    if len({product["id"] for product in products}) != len(set(product_ids)):
+        raise HTTPException(status_code=400, detail="Produto do combo não encontrado")
+
+
+@api_router.get("/combos")
+async def list_public_combos():
+    docs = await db.combos.find(
+        {"active": True}, {"_id": 0}
+    ).sort([("display_order", 1), ("created_at", -1)]).to_list(1000)
+    combos = [await combo_response(doc) for doc in docs]
+    return [combo for combo in combos if combo["purchasable"]]
+
+
+@api_router.get("/admin/combos")
+async def list_admin_combos(_: dict = Depends(require_admin)):
+    docs = await db.combos.find({}, {"_id": 0}).sort(
+        [("display_order", 1), ("created_at", -1)]
+    ).to_list(1000)
+    return [await combo_response(doc) for doc in docs]
+
+
+@api_router.post("/admin/combos")
+async def create_combo(payload: ComboIn, _: dict = Depends(require_admin)):
+    await validate_combo_payload(payload)
+    doc = payload.model_dump()
+    doc["name"] = payload.name.strip()
+    doc["description"] = payload.description or ""
+    doc["id"] = str(uuid.uuid4())
+    doc["created_at"] = iso(now_utc())
+    await db.combos.insert_one(doc)
+    doc.pop("_id", None)
+    return await combo_response(doc)
+
+
+@api_router.put("/admin/combos/{combo_id}")
+async def update_combo(combo_id: str, payload: ComboIn, _: dict = Depends(require_admin)):
+    await validate_combo_payload(payload)
+    update = payload.model_dump()
+    update["name"] = payload.name.strip()
+    update["description"] = payload.description or ""
+    res = await db.combos.update_one({"id": combo_id}, {"$set": update})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Combo não encontrado")
+    doc = await db.combos.find_one({"id": combo_id}, {"_id": 0})
+    return await combo_response(doc)
+
+
+@api_router.delete("/admin/combos/{combo_id}")
+async def delete_combo(combo_id: str, _: dict = Depends(require_admin)):
+    res = await db.combos.delete_one({"id": combo_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Combo não encontrado")
     return {"ok": True}
 
 
@@ -590,6 +717,47 @@ def resolve_product_price(product: dict) -> float:
 async def build_priced_order_items(items: List[OrderItemIn]) -> List[OrderItem]:
     priced_items: List[OrderItem] = []
     for item in items:
+        if item.item_type == "combo":
+            if not item.combo_id:
+                raise HTTPException(status_code=400, detail="Combo não informado")
+            combo = await db.combos.find_one({"id": item.combo_id}, {"_id": 0})
+            if not combo:
+                raise HTTPException(status_code=400, detail="Combo não encontrado")
+            if not combo.get("active", False):
+                raise HTTPException(status_code=400, detail="Combo indisponível")
+
+            combo_items, purchasable = await resolve_combo_products(combo.get("products", []))
+            if not purchasable or not combo_items:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Combo possui produto indisponível",
+                )
+
+            combo_price = float(combo.get("promotional_price", 0))
+            if combo_price < 0:
+                raise HTTPException(status_code=400, detail="Combo com preço inválido")
+
+            priced_items.append(
+                OrderItem(
+                    item_type="combo",
+                    combo_id=combo["id"],
+                    name=combo.get("name", ""),
+                    quantity=item.quantity,
+                    unit_price=round(combo_price, 2),
+                    combo_items=[
+                        {
+                            "product_id": combo_item["product_id"],
+                            "name": combo_item["name"],
+                            "quantity": combo_item["quantity"],
+                        }
+                        for combo_item in combo_items
+                    ],
+                )
+            )
+            continue
+
+        if not item.product_id:
+            raise HTTPException(status_code=400, detail="Produto não informado")
         product = await db.products.find_one({"id": item.product_id}, {"_id": 0})
         if not product:
             raise HTTPException(status_code=400, detail="Produto não encontrado")
@@ -598,6 +766,7 @@ async def build_priced_order_items(items: List[OrderItemIn]) -> List[OrderItem]:
 
         priced_items.append(
             OrderItem(
+                item_type="product",
                 product_id=product["id"],
                 name=product.get("name", ""),
                 quantity=item.quantity,
@@ -812,6 +981,7 @@ async def admin_stats(_: dict = Depends(require_admin)):
 async def on_startup():
     await db.users.create_index("email", unique=True)
     await db.products.create_index("category_id")
+    await db.combos.create_index([("active", 1), ("display_order", 1)])
     await db.orders.create_index("created_at")
     await db.delivery_areas.create_index("name")
 

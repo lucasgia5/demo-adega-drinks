@@ -71,7 +71,16 @@ export default function Account() {
                 </p>
                 {o.items.map((i, idx) => (
                   <div key={idx} className="flex justify-between text-stone-700">
-                    <span>{i.quantity}× {i.name}</span>
+                    <span>
+                      {i.quantity}× {i.item_type === "combo" ? `Combo ${i.name}` : i.name}
+                      {i.item_type === "combo" && i.combo_items?.length > 0 && (
+                        <span className="mt-0.5 block text-xs text-stone-500">
+                          {i.combo_items
+                            .map((comboItem) => `${comboItem.quantity}x ${comboItem.name}`)
+                            .join(" · ")}
+                        </span>
+                      )}
+                    </span>
                     <span>{brl(i.unit_price * i.quantity)}</span>
                   </div>
                 ))}
