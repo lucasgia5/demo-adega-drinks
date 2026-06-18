@@ -280,8 +280,31 @@ class TestOrdersWithDeliveryArea:
         assert d["delivery_area_id"] is None
         assert d["delivery_area_name"] == ""
         assert d["delivery_fee"] == 0
+        assert d["free_shipping_applied"] is False
         assert d["subtotal"] == expected_subtotal
         assert d["total"] == expected_subtotal
+
+    def test_delivery_applies_free_shipping_at_configured_minimum(self, s, first_product):
+        areas = s.get(f"{API}/delivery-areas").json()
+        jardins = next(a for a in areas if a["name"] == "Jardins")
+        qty = self._qty_for_min_order(first_product, 150.0)
+
+        r = requests.post(f"{API}/orders", json={
+            "customer_name": "Free Shipping Test",
+            "customer_phone": "11999990000",
+            "customer_address": "Rua X, 1",
+            "payment_method": "pix",
+            "fulfillment_type": "delivery",
+            "delivery_area_id": jardins["id"],
+            "items": self._items(first_product, qty=qty),
+        })
+
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["subtotal"] >= 150.0
+        assert d["delivery_fee"] == 0
+        assert d["free_shipping_applied"] is True
+        assert d["total"] == d["subtotal"]
 
     def test_order_with_inactive_area_400(self, admin_headers, first_product):
         # Create inactive area

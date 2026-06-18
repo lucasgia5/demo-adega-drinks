@@ -77,6 +77,8 @@ class TestPublic:
             "monday", "tuesday", "wednesday", "thursday",
             "friday", "saturday", "sunday",
         }
+        assert d["free_shipping_enabled"] is True
+        assert d["free_shipping_minimum"] == 150.0
 
     def test_categories_seed(self, s):
         r = s.get(f"{API}/categories")

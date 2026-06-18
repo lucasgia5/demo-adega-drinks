@@ -331,6 +331,7 @@ class Order(BaseModel):
     fulfillment_type: str = "delivery"
     items: List[OrderItem]
     observations: str = ""
+    free_shipping_applied: bool = False
     total: float
     status: str
     user_id: Optional[str] = None
@@ -660,6 +661,18 @@ async def create_order(payload: OrderIn, request: Request):
                 detail=f"Pedido mínimo para {delivery_area_name} é R$ {float(min_order):.2f}",
             )
 
+    free_shipping_applied = False
+    free_shipping_minimum = float(STORE_CONFIG.get("free_shipping_minimum", 0) or 0)
+    if free_shipping_minimum < 0:
+        raise HTTPException(status_code=500, detail="Configuração de frete grátis inválida")
+    if (
+        payload.fulfillment_type == "delivery"
+        and STORE_CONFIG.get("free_shipping_enabled", False)
+        and subtotal >= free_shipping_minimum
+    ):
+        delivery_fee = 0.0
+        free_shipping_applied = True
+
     total = round(subtotal + delivery_fee, 2)
 
     doc = {
@@ -675,6 +688,7 @@ async def create_order(payload: OrderIn, request: Request):
         "delivery_area_id": delivery_area_id,
         "delivery_area_name": delivery_area_name,
         "delivery_fee": delivery_fee,
+        "free_shipping_applied": free_shipping_applied,
         "total": total,
         "status": "recebido",
         "user_id": user_id,

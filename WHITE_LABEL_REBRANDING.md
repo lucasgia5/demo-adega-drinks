@@ -82,6 +82,28 @@ Se a loja não quiser exibir status ou avisos de funcionamento:
 
 Quando ativo, o frontend mostra o status na vitrine, avisa no checkout quando a loja está fechada e inclui o status na mensagem do WhatsApp. O aviso não bloqueia pedidos.
 
+## Frete Grátis Por Valor Mínimo
+
+Configure em `backend/store_config.py`:
+
+```python
+"free_shipping_enabled": True,
+"free_shipping_minimum": 150.00,
+```
+
+Quando ativo:
+
+- O carrinho e o checkout mostram quanto falta para o frete grátis.
+- Ao atingir o mínimo, pedidos do tipo `delivery` recebem `delivery_fee=0`.
+- Pedidos do tipo `pickup` nunca usam essa regra.
+- A mensagem do WhatsApp informa quando o frete grátis foi aplicado.
+
+Para manter sempre a taxa normal das áreas:
+
+```python
+"free_shipping_enabled": False,
+```
+
 ## 1. Nome da Loja
 
 Edite `backend/store_config.py`:
@@ -238,6 +260,7 @@ Use uma senha forte e única por loja. Se `ADMIN_PASSWORD`, `JWT_SECRET`, `MONGO
 - [ ] Alterar fallback em `frontend/src/whiteLabelDefaults.js`.
 - [ ] Ativar ou desativar o age gate conforme o tipo de loja.
 - [ ] Configurar horário de funcionamento e fuso da loja.
+- [ ] Configurar ou desativar o mínimo para frete grátis.
 - [ ] Configurar Cloudinary com pasta/prefixo próprio.
 - [ ] Configurar `FRONTEND_URL`.
 - [ ] Configurar `REACT_APP_BACKEND_URL`.

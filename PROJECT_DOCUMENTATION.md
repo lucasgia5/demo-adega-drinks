@@ -218,6 +218,7 @@ Guard de rota: `ProtectedRoute` aceita prop `requireAdmin`. Sem token → redire
 - Lê o carrinho do `CartContext` e permite escolher entre `delivery` (Entrega) e `pickup` (Retirada no local).
 - Em entrega, exibe Resumo (Subtotal, Taxa de entrega, Total), busca áreas ativas em `GET /api/delivery-areas` e mantém a validação de `min_order`.
 - Em retirada, oculta a seleção de área, ignora pedido mínimo por região, usa `delivery_fee=0` e `total=subtotal`.
+- Quando `free_shipping_enabled` está ativo, carrinho e checkout exibem o progresso até `free_shipping_minimum`. Ao atingir o mínimo em pedidos `delivery`, o backend zera `delivery_fee`; o benefício nunca se aplica a `pickup`.
 - Se o horário de funcionamento estiver ativo e a loja estiver fechada, mostra um aviso informativo antes do formulário. O pedido continua permitido e a mensagem do WhatsApp registra o status da loja naquele momento.
 - No submit:
   1. `POST /api/orders` com `{ customer_name, customer_phone, customer_address, fulfillment_type, delivery_area_id, payment_method, items, observations }`.
@@ -483,7 +484,7 @@ Upload de imagem:
 }
 ```
 
-O frontend envia somente `product_id` e `quantity` para cada item. O backend ignora qualquer campo de preço enviado pelo cliente (`price`, `unit_price`, `subtotal`, `total`), busca cada produto no MongoDB, valida disponibilidade e valores não negativos, escolhe `promo_price` quando `promo_active=true` e houver preço promocional, calcula `unit_price`, `subtotal`, `delivery_fee` e `total`, e salva no pedido apenas os valores calculados no servidor. Em `pickup`, a área enviada é ignorada e a taxa permanece zero. Status inicial = `"recebido"`.
+O frontend envia somente `product_id` e `quantity` para cada item. O backend ignora qualquer campo de preço enviado pelo cliente (`price`, `unit_price`, `subtotal`, `total`), busca cada produto no MongoDB, valida disponibilidade e valores não negativos, escolhe `promo_price` quando `promo_active=true` e houver preço promocional, calcula `unit_price`, `subtotal`, `delivery_fee` e `total`, e salva no pedido apenas os valores calculados no servidor. Em `pickup`, a área enviada é ignorada e a taxa permanece zero. Em `delivery`, o backend aplica frete grátis quando a configuração está ativa e o subtotal atinge o mínimo. Status inicial = `"recebido"`.
 
 `OrderStatusIn`: `{ "status": "recebido"|"em_preparo"|"saiu_entrega"|"entregue"|"cancelado" }`
 
@@ -652,6 +653,7 @@ Imagens de produtos não são salvas como binário no MongoDB. O banco mantém s
 | `delivery_area_id` | string \| null | FK lógica para `delivery_areas.id` |
 | `delivery_area_name` | string | snapshot do nome no momento do pedido |
 | `delivery_fee` | float | snapshot da taxa |
+| `free_shipping_applied` | bool | indica que a taxa foi zerada pelo mínimo configurado |
 | `total` | float | `subtotal + delivery_fee` |
 | `status` | string | `recebido` (default) → ... → `entregue`/`cancelado` |
 | `user_id` | string \| null | se logado, FK para `users.id` |
@@ -913,6 +915,8 @@ O guia operacional completo fica em `WHITE_LABEL_REBRANDING.md`.
 | `business_hours_enabled` | Ativa ou desativa o status de funcionamento |
 | `business_hours_timezone` | Fuso IANA usado no cálculo, por exemplo `America/Sao_Paulo` |
 | `business_hours` | Agenda por dia com `open`, `close` e `closed` |
+| `free_shipping_enabled` | Ativa ou desativa o frete grátis por subtotal mínimo |
+| `free_shipping_minimum` | Subtotal mínimo para zerar a taxa em pedidos de entrega |
 
 ### 10.3. Rebranding para loja de quadros
 

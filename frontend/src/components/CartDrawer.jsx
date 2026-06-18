@@ -1,12 +1,15 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCart } from "@/context/CartContext";
+import { useStoreConfig } from "@/context/StoreConfigContext";
 import { brl } from "@/lib/api";
 import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import FreeShippingProgress from "@/components/FreeShippingProgress";
 
 export default function CartDrawer() {
   const { items, total, isOpen, setIsOpen, setQty, remove } = useCart();
+  const { config } = useStoreConfig();
   const navigate = useNavigate();
 
   const goCheckout = () => {
@@ -85,6 +88,9 @@ export default function CartDrawer() {
         </div>
 
         <div className="border-t border-stone-200 bg-white p-5 space-y-3">
+          {items.length > 0 && (
+            <FreeShippingProgress subtotal={total} config={config} />
+          )}
           <div className="flex items-center justify-between">
             <span className="text-stone-600">Total</span>
             <span className="font-serif text-2xl font-semibold text-brand" data-testid="cart-total">

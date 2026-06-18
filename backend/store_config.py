@@ -46,4 +46,6 @@ STORE_CONFIG = {
         "saturday": {"open": "10:00", "close": "23:00", "closed": False},
         "sunday": {"open": "10:00", "close": "18:00", "closed": False},
     },
+    "free_shipping_enabled": True,
+    "free_shipping_minimum": 150.00,
 }

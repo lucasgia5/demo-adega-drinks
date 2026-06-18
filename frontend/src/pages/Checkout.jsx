@@ -7,6 +7,7 @@ import { STORE_CONFIG_FALLBACK } from "@/whiteLabelDefaults";
 import { calculateBusinessStatus, useBusinessStatus } from "@/hooks/useBusinessStatus";
 import api, { brl, formatApiErrorDetail } from "@/lib/api";
 import Header from "@/components/Header";
+import FreeShippingProgress from "@/components/FreeShippingProgress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,7 +67,15 @@ export default function Checkout() {
     [areas, form.delivery_area_id]
   );
   const isPickup = form.fulfillment_type === "pickup";
-  const deliveryFee = !isPickup && selectedArea ? Number(selectedArea.fee || 0) : 0;
+  const freeShippingMinimum = Number(config?.free_shipping_minimum);
+  const freeShippingReached =
+    !isPickup &&
+    config?.free_shipping_enabled === true &&
+    Number.isFinite(freeShippingMinimum) &&
+    freeShippingMinimum >= 0 &&
+    subtotal >= freeShippingMinimum;
+  const deliveryFee =
+    !isPickup && selectedArea && !freeShippingReached ? Number(selectedArea.fee || 0) : 0;
   const total = subtotal + deliveryFee;
   const belowMin =
     !isPickup &&
@@ -102,6 +111,9 @@ export default function Checkout() {
     lines.push(`*Subtotal:* ${brl(order.subtotal ?? subtotal)}`);
     if ((order.fulfillment_type || "delivery") === "delivery") {
       lines.push(`*Taxa de entrega:* ${brl(order.delivery_fee ?? 0)}`);
+      if (order.free_shipping_applied) {
+        lines.push("*Frete grátis aplicado*");
+      }
     }
     lines.push(`*Total:* ${brl(order.total)}`);
     lines.push(`*Pagamento:* ${PAYMENT_LABELS[order.payment_method] || order.payment_method}`);
@@ -347,6 +359,15 @@ export default function Checkout() {
           <aside className="lg:col-span-1">
             <div className="bg-white rounded-2xl border border-stone-200 p-6 sticky top-20">
               <h2 className="font-serif text-xl font-semibold mb-4">Resumo</h2>
+              {!isPickup && config?.free_shipping_enabled === true && (
+                <div className="mb-4">
+                  <FreeShippingProgress
+                    subtotal={subtotal}
+                    config={config}
+                    fulfillmentType={form.fulfillment_type}
+                  />
+                </div>
+              )}
               <div className="mb-4 flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2 text-sm">
                 <span className="text-stone-600">Tipo</span>
                 <span className="font-medium text-stone-900">

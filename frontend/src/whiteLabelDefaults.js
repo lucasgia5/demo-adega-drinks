@@ -20,4 +20,6 @@ export const STORE_CONFIG_FALLBACK = {
   business_hours_enabled: false,
   business_hours_timezone: "America/Sao_Paulo",
   business_hours: {},
+  free_shipping_enabled: false,
+  free_shipping_minimum: 0,
 };
