@@ -13,20 +13,20 @@ Example for a custom store:
 
 STORE_CONFIG = {
     "name": "Adega Drinks",
-    "tagline": "os melhor copão de cidade",
+    "tagline": "o melhor copão de cidade",
     "search_placeholder": "Buscar produtos...",
     "logo_url": "",  # leave empty to render text logo
     "store_logo_url": "",
     "primary_color": "#3B2416",  # Dark brown
     "secondary_color": "#D49A2A",  # Amber gold
-    "whatsapp_number": "5511999990000",  # international format, digits only
+    "whatsapp_number": "5511984122002",  # international format, digits only
     "address": "Rua das Vinhas, 123 - Centro, São Paulo - SP",
-    "pix_key": "contato@adegadovinho.com.br",
+    "pix_key": "contato@adegadrinks.com.br",
     "pix_key_type": "E-mail",
     "banner_url": "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=2000&q=85",
     "store_banner_url": "",
     "banner_title": "Adega Drinks",
-    "banner_subtitle": "os melhor copão de cidade",
+    "banner_subtitle": "o melhor copão de cidade",
     "banner_button_text": "",
     "banner_button_link": "",
     "banner_enabled": True,
