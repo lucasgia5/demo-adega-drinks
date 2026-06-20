@@ -1,6 +1,6 @@
-# E-commerce White Label
+# Adega Drinks
 
-Aplicação white label de delivery/e-commerce com vitrine pública, carrinho, checkout via WhatsApp, painel administrativo, gestão de produtos, categorias, pedidos, áreas de entrega e upload de imagens via Cloudinary.
+Loja demo de adega/bar com delivery e retirada, criada a partir do template `ecomm-white-label`. A aplicação inclui vitrine pública, carrinho, checkout via WhatsApp, painel administrativo, gestão de produtos, categorias, pedidos, áreas de entrega e upload de imagens via Cloudinary.
 
 Para criar uma nova marca, siga o guia [WHITE_LABEL_REBRANDING.md](WHITE_LABEL_REBRANDING.md).
 
@@ -51,7 +51,7 @@ Em produção:
 3. Em Network Access, libere o IP do provedor. Para Render Free, normalmente use `0.0.0.0/0`; em planos/provedores com IP fixo, prefira liberar apenas o IP apropriado.
 4. Copie a connection string exata pelo botão **Connect** do Atlas.
 5. Substitua apenas usuário e senha na connection string.
-6. Defina `DB_NAME` com um nome específico por loja, por exemplo `loja_quadros_prod`.
+6. Defina `DB_NAME` com um nome específico por loja, por exemplo `adega_drinks_demo_rebrand`.
 
 ## Cloudinary
 

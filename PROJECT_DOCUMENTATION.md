@@ -1,4 +1,4 @@
-# PROJECT DOCUMENTATION — Adega Delivery (White Label)
+# PROJECT DOCUMENTATION — Adega Drinks (White Label)
 
 > Documentação técnica completa do projeto. Escrita para que **outro desenvolvedor** (ou uma IA como Codex) consiga continuar o desenvolvimento **sem contexto prévio**.
 
@@ -29,7 +29,7 @@
 
 ### 1.1. Objetivo
 
-Aplicação web **white-label de delivery** focada em **adegas**, mas estruturada de forma genérica para ser reutilizada em qualquer pequeno comércio (uma loja por instalação — **não é multi-tenant**).
+Aplicação web da loja demo **Adega Drinks**, uma adega/bar com delivery e retirada criada a partir do template `ecomm-white-label`. A arquitetura continua genérica e reutilizável por pequenos comércios (uma loja por instalação — **não é multi-tenant**).
 
 O fluxo principal converte um carrinho em uma **mensagem de WhatsApp pré-preenchida** que abre direto no número da loja, com pedido salvo no banco para gestão posterior pelo administrador.
 
@@ -646,7 +646,7 @@ Exemplo:
 
 Exemplo:
 ```json
-{ "id": "cat-uuid", "name": "Vinhos Tintos", "description": "", "icon": "wine", "created_at": "2026-..." }
+{ "id": "cat-uuid", "name": "Dose", "description": "", "icon": "glass", "created_at": "2026-..." }
 ```
 
 ### 5.4. `products`
@@ -1006,16 +1006,16 @@ O guia operacional completo fica em `WHITE_LABEL_REBRANDING.md`.
 | `free_shipping_enabled` | Ativa ou desativa o frete grátis por subtotal mínimo |
 | `free_shipping_minimum` | Subtotal mínimo para zerar a taxa em pedidos de entrega |
 
-### 10.3. Rebranding para loja de quadros
+### 10.3. Rebranding aplicado nesta demo
 
-Para criar uma loja de quadros:
+Este repositório demonstra o template configurado como **Adega Drinks**:
 
-1. Edite `backend/store_config.py` com nome, logo, cores, banner, WhatsApp, Pix e domínio.
-2. Edite `backend/seed_config.py` com categorias como "Quadros Abstratos", "Paisagens", "Minimalistas" e produtos com imagens de quadros.
+1. `backend/store_config.py` define nome, paleta marrom/dourada, banner de bar e textos da loja.
+2. `backend/seed_config.py` contém as categorias "Dose", "Garrafas" e "Combos", com produtos fictícios da demo.
 3. As cores `primary_color` e `secondary_color` são aplicadas automaticamente no frontend; ajuste `frontend/src/index.css` e `frontend/tailwind.config.js` apenas para tons de fundo, fontes ou fallback visual.
-4. Edite `frontend/src/whiteLabelDefaults.js` para um fallback genérico da nova loja.
+4. `frontend/src/whiteLabelDefaults.js` mantém a mesma identidade como fallback quando a API ainda não respondeu.
 5. Configure `FRONTEND_URL`, `REACT_APP_BACKEND_URL`, `ADMIN_EMAIL` e `ADMIN_PASSWORD` no ambiente de produção.
-6. Faça o primeiro startup com banco vazio para aplicar os seeds novos.
+6. Faça o primeiro startup com banco vazio para aplicar os seeds. Em ambiente local já populado, use outro `DB_NAME`, como `adega_drinks_demo_rebrand`, ou limpe manualmente apenas as coleções de teste antes de reiniciar.
 7. Após o login admin, use `/admin/identidade` para substituir logo/banner sem editar código.
 
 ---

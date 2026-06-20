@@ -1,7 +1,7 @@
 # White Label Rebranding Guide
 
 Este projeto foi organizado para rebrandar a loja mexendo em poucos pontos.
-Para criar uma loja de quadros, altere os arquivos e variáveis abaixo antes do primeiro deploy/seed em produção.
+Este repositório é a demo **Adega Drinks**, criada a partir do template `ecomm-white-label`. Para criar outra marca, altere os arquivos e variáveis abaixo antes do primeiro deploy/seed em produção.
 
 ## Fluxo Recomendado Para Uma Nova Loja
 
@@ -133,8 +133,8 @@ Depois do deploy, o administrador pode acessar `/admin/identidade`, visualizar o
 Edite `backend/store_config.py` para expor as cores da marca. O frontend aplica `primary_color` e `secondary_color` automaticamente nas variáveis visuais principais:
 
 ```python
-"primary_color": "#1F2937",
-"secondary_color": "#B08D57",
+"primary_color": "#3B2416",
+"secondary_color": "#D49A2A",
 ```
 
 Se quiser ajustar tons de fundo, fontes ou tokens de fallback, edite também:
@@ -142,10 +142,10 @@ Se quiser ajustar tons de fundo, fontes ou tokens de fallback, edite também:
 - `frontend/src/index.css`: variáveis CSS `--primary`, `--accent`, `--ring`, etc.
 - `frontend/tailwind.config.js`: cores `brand`, `brand-dark`, `brand-gold`, `brand-cream`.
 
-Para loja de quadros, uma sugestão:
+Na demo Adega Drinks:
 
-- primária: grafite/charcoal
-- secundária: dourado fosco ou madeira clara
+- primária: marrom escuro
+- secundária: dourado/âmbar
 - fundo: off-white/neutro
 
 ## 4. Banner
@@ -153,10 +153,10 @@ Para loja de quadros, uma sugestão:
 Defaults disponíveis em `backend/store_config.py`:
 
 ```python
-"store_banner_url": "https://.../banner-quadros.jpg",
-"banner_title": "Galeria dos Quadros",
-"banner_subtitle": "Arte para transformar seus ambientes",
-"banner_button_text": "Ver coleção",
+"store_banner_url": "https://.../banner-bar.jpg",
+"banner_title": "Adega Drinks",
+"banner_subtitle": "os melhor copão de cidade",
+"banner_button_text": "Ver produtos",
 "banner_button_link": "/#produtos",
 "banner_enabled": True,
 ```
@@ -193,15 +193,13 @@ Edite:
 
 Edite `backend/seed_config.py`, em `SEED_CATEGORIES`.
 
-Exemplo para loja de quadros:
+Exemplo usado pela demo Adega Drinks:
 
 ```python
 SEED_CATEGORIES = [
-    {"name": "Quadros Abstratos", "icon": "image"},
-    {"name": "Paisagens", "icon": "image"},
-    {"name": "Minimalistas", "icon": "image"},
-    {"name": "Frases e Tipografia", "icon": "image"},
-    {"name": "Molduras Especiais", "icon": "image"},
+    {"name": "Dose", "icon": "glass"},
+    {"name": "Garrafas", "icon": "wine"},
+    {"name": "Combos", "icon": "package"},
 ]
 ```
 
@@ -215,17 +213,17 @@ Exemplo:
 
 ```python
 {
-    "name": "Quadro Abstrato Terracota",
-    "description": "Arte abstrata em tons terrosos com moldura preta.",
-    "category_name": "Quadros Abstratos",
-    "price": 189.90,
+    "name": "Dose de gin com energético",
+    "description": "Dose de gin servida com energético.",
+    "category_name": "Dose",
+    "price": 15.00,
     "promo_active": True,
-    "promo_price": 149.90,
-    "image_url": "https://res.cloudinary.com/.../quadro-abstrato.jpg",
+    "promo_price": 10.00,
+    "image_url": "",
 }
 ```
 
-O seed roda apenas quando a coleção `categories` está vazia. Em produção, ajuste antes do primeiro startup ou limpe o banco de teste antes de reseedar.
+O seed roda apenas quando a coleção `categories` está vazia. Em produção, ajuste antes do primeiro startup. Em desenvolvimento, use um novo `DB_NAME`, como `adega_drinks_demo_rebrand`, ou limpe manualmente as coleções de teste antes de reseedar. O código não apaga dados automaticamente.
 
 ## 9. Combos da Semana
 
