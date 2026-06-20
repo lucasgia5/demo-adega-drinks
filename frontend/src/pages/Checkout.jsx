@@ -17,7 +17,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, Copy, MapPin, Store } from "lucide-react";
+import {
+  AlertTriangle, ArrowLeft, CheckCircle2, Copy, ExternalLink, MapPin, Store,
+} from "lucide-react";
 
 const PAYMENT_LABELS = {
   pix: "Pix",
@@ -28,6 +30,18 @@ const PAYMENT_LABELS = {
 const FULFILLMENT_LABELS = {
   delivery: "Entrega",
   pickup: "Retirada no local",
+};
+
+const isMobileDevice = () => {
+  if (navigator.userAgentData?.mobile === true) return true;
+  if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return true;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+};
+
+const buildWhatsAppUrl = (number, message) => {
+  const digits = String(number || "").replace(/\D/g, "");
+  if (!/^\d{10,15}$/.test(digits)) return "";
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 };
 
 export default function Checkout() {
@@ -48,6 +62,7 @@ export default function Checkout() {
     observations: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [completedOrder, setCompletedOrder] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -136,6 +151,56 @@ export default function Checkout() {
     return lines.join("\n");
   };
 
+  const openWhatsApp = (whatsappUrl) => {
+    if (!whatsappUrl) {
+      toast.error("O WhatsApp da loja não está configurado corretamente");
+      return false;
+    }
+
+    try {
+      if (isMobileDevice()) {
+        window.location.href = whatsappUrl;
+        return true;
+      }
+
+      const opened = window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        toast.info("Use o botão “Abrir WhatsApp” para continuar");
+        return false;
+      }
+      return true;
+    } catch {
+      toast.info("Use o botão “Abrir WhatsApp” para continuar");
+      return false;
+    }
+  };
+
+  const copyWhatsAppMessage = async () => {
+    if (!completedOrder?.message) return;
+
+    try {
+      await navigator.clipboard.writeText(completedOrder.message);
+      toast.success("Mensagem copiada");
+    } catch {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = completedOrder.message;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        copied
+          ? toast.success("Mensagem copiada")
+          : toast.error("Não foi possível copiar a mensagem");
+      } catch {
+        toast.error("Não foi possível copiar a mensagem");
+      }
+    }
+  };
+
   const placeOrder = async (e) => {
     e.preventDefault();
     if (items.length === 0) {
@@ -180,14 +245,13 @@ export default function Checkout() {
       };
       const { data: order } = await api.post("/orders", payload);
 
-      const msg = formatWhatsAppMessage(order);
-      const whatsappNumber = (config?.whatsapp_number || "").replace(/\D/g, "");
-      const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`;
+      const message = formatWhatsAppMessage(order);
+      const whatsappUrl = buildWhatsAppUrl(config?.whatsapp_number, message);
 
+      setCompletedOrder({ order, message, whatsappUrl });
       clear();
-      toast.success("Pedido enviado! Abrindo WhatsApp...");
-      window.open(url, "_blank");
-      setTimeout(() => navigate("/"), 800);
+      toast.success("Pedido salvo com sucesso");
+      openWhatsApp(whatsappUrl);
     } catch (e) {
       toast.error(formatApiErrorDetail(e.response?.data?.detail) || "Erro ao enviar pedido");
     } finally {
@@ -199,6 +263,59 @@ export default function Checkout() {
     <div className="min-h-screen bg-brand-cream">
       <Header />
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24">
+        {completedOrder ? (
+          <div
+            className="mx-auto mt-8 max-w-xl rounded-2xl border border-emerald-200 bg-white p-6 text-center shadow-sm sm:p-8"
+            role="status"
+            data-testid="order-success"
+          >
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <CheckCircle2 className="h-7 w-7" />
+            </div>
+            <h1 className="mt-4 font-serif text-3xl font-semibold text-stone-900">
+              Pedido salvo com sucesso
+            </h1>
+            <p className="mt-2 text-stone-600">
+              Pedido #{completedOrder.order.id.slice(0, 8).toUpperCase()} registrado. Agora envie
+              a mensagem para a loja pelo WhatsApp.
+            </p>
+            {!completedOrder.whatsappUrl && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                O número do WhatsApp da loja não está configurado corretamente. Seu pedido continua
+                salvo e pode ser consultado no painel administrativo.
+              </div>
+            )}
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <Button
+                type="button"
+                disabled={!completedOrder.whatsappUrl}
+                onClick={() => openWhatsApp(completedOrder.whatsappUrl)}
+                className="h-12 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                data-testid="open-whatsapp"
+              >
+                <ExternalLink className="h-4 w-4" /> Abrir WhatsApp
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={copyWhatsAppMessage}
+                className="h-12 rounded-xl"
+                data-testid="copy-whatsapp-message"
+              >
+                <Copy className="h-4 w-4" /> Copiar mensagem
+              </Button>
+            </div>
+            <Button
+              type="button"
+              variant="link"
+              onClick={() => navigate("/")}
+              className="mt-4 text-brand"
+            >
+              Voltar para a loja
+            </Button>
+          </div>
+        ) : (
+          <>
         <button
           onClick={() => navigate(-1)}
           className="inline-flex items-center text-sm text-stone-600 hover:text-brand mb-4"
@@ -447,6 +564,8 @@ export default function Checkout() {
             </div>
           </aside>
         </form>
+          </>
+        )}
       </div>
     </div>
   );

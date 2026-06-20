@@ -74,9 +74,21 @@ export default function AdminLayout({ title, children, actions }) {
 
       <div className="lg:pl-64">
         <header className="bg-white border-b border-stone-200 sticky top-0 z-30">
-          <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <h1 className="font-serif text-2xl font-semibold text-stone-900">{title}</h1>
-            <div className="flex items-center gap-2">{actions}</div>
+          <div className="px-4 sm:px-6 lg:px-8 min-h-16 py-3 flex flex-wrap items-center justify-between gap-2">
+            <h1 className="min-w-0 font-serif text-xl sm:text-2xl font-semibold text-stone-900">
+              {title}
+            </h1>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/"
+                data-testid="admin-view-store"
+                className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:border-brand/40 hover:text-brand"
+              >
+                <Store className="h-4 w-4" />
+                <span>Ver loja</span>
+              </Link>
+              {actions}
+            </div>
           </div>
           {/* Mobile nav */}
           <div className="lg:hidden flex gap-1 overflow-x-auto px-3 pb-2 scrollbar-hide">
