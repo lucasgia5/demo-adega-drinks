@@ -12,7 +12,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const empty = {
@@ -126,6 +126,18 @@ export default function Products() {
 
   const catName = (id) => cats.find((c) => c.id === id)?.name || "—";
 
+  const moveProduct = async (product, direction) => {
+    try {
+      const { data } = await api.post("/admin/products/reorder", {
+        id: product.id,
+        direction,
+      });
+      setProducts(data);
+    } catch (e) {
+      toast.error(formatApiErrorDetail(e.response?.data?.detail) || "Erro ao reordenar produto");
+    }
+  };
+
   return (
     <AdminLayout
       title="Produtos"
@@ -150,7 +162,7 @@ export default function Products() {
             {products.length === 0 && (
               <tr><td colSpan={5} className="p-8 text-center text-stone-500">Nenhum produto cadastrado.</td></tr>
             )}
-            {products.map((p) => (
+            {products.map((p, index) => (
               <tr key={p.id} className="border-t border-stone-100">
                 <td className="p-3">
                   <div className="flex items-center gap-3">
@@ -180,6 +192,24 @@ export default function Products() {
                   </span>
                 </td>
                 <td className="p-3 text-right">
+                  <button
+                    onClick={() => moveProduct(p, "up")}
+                    disabled={index === 0}
+                    data-testid={`move-product-up-${p.id}`}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-35"
+                    aria-label={`Subir ${p.name}`}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => moveProduct(p, "down")}
+                    disabled={index === products.length - 1}
+                    data-testid={`move-product-down-${p.id}`}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-35"
+                    aria-label={`Descer ${p.name}`}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </button>
                   <button onClick={() => openEdit(p)} data-testid={`edit-product-${p.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-stone-100">
                     <Pencil className="h-4 w-4" />
                   </button>

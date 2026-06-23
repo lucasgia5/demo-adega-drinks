@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Pencil, Plus, Trash2, UploadCloud } from "lucide-react";
+import { ArrowDown, ArrowUp, Pencil, Plus, Trash2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 
 const empty = {
@@ -18,7 +18,6 @@ const empty = {
   image_url: "",
   promotional_price: "",
   active: true,
-  display_order: "0",
   products: [],
 };
 
@@ -60,7 +59,6 @@ export default function Combos() {
       image_url: combo.image_url || "",
       promotional_price: String(combo.promotional_price),
       active: combo.active,
-      display_order: String(combo.display_order || 0),
       products: combo.products || [],
     });
     setImagePreview(combo.image_url || "");
@@ -130,7 +128,6 @@ export default function Combos() {
         products: form.products,
         promotional_price: Number(form.promotional_price),
         active: form.active,
-        display_order: Number(form.display_order) || 0,
       };
       if (editing) {
         await api.put(`/admin/combos/${editing.id}`, payload);
@@ -156,6 +153,18 @@ export default function Combos() {
       await load();
     } catch (error) {
       toast.error(formatApiErrorDetail(error.response?.data?.detail) || "Erro ao excluir combo");
+    }
+  };
+
+  const moveCombo = async (combo, direction) => {
+    try {
+      const { data } = await api.post("/admin/combos/reorder", {
+        id: combo.id,
+        direction,
+      });
+      setCombos(data);
+    } catch (error) {
+      toast.error(formatApiErrorDetail(error.response?.data?.detail) || "Erro ao reordenar combo");
     }
   };
 
@@ -187,11 +196,10 @@ export default function Combos() {
                 </td>
               </tr>
             )}
-            {combos.map((combo) => (
+            {combos.map((combo, index) => (
               <tr key={combo.id} className="border-t border-stone-100">
                 <td className="p-3">
                   <p className="font-medium text-stone-900">{combo.name}</p>
-                  <p className="text-xs text-stone-500">Ordem {combo.display_order}</p>
                 </td>
                 <td className="hidden p-3 text-stone-600 md:table-cell">
                   {combo.resolved_products
@@ -211,6 +219,24 @@ export default function Combos() {
                   </span>
                 </td>
                 <td className="p-3 text-right">
+                  <button
+                    onClick={() => moveCombo(combo, "up")}
+                    disabled={index === 0}
+                    className="inline-grid h-8 w-8 place-items-center rounded-lg hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-35"
+                    aria-label={`Subir ${combo.name}`}
+                    data-testid={`move-combo-up-${combo.id}`}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => moveCombo(combo, "down")}
+                    disabled={index === combos.length - 1}
+                    className="inline-grid h-8 w-8 place-items-center rounded-lg hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-35"
+                    aria-label={`Descer ${combo.name}`}
+                    data-testid={`move-combo-down-${combo.id}`}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </button>
                   <button
                     onClick={() => openEdit(combo)}
                     className="inline-grid h-8 w-8 place-items-center rounded-lg hover:bg-stone-100"
@@ -290,14 +316,10 @@ export default function Combos() {
                 </div>
               )}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div>
               <div>
                 <Label>Preço promocional</Label>
                 <Input type="number" min="0" step="0.01" value={form.promotional_price} onChange={(event) => setForm({ ...form, promotional_price: event.target.value })} />
-              </div>
-              <div>
-                <Label>Ordem de exibição</Label>
-                <Input type="number" min="0" step="1" value={form.display_order} onChange={(event) => setForm({ ...form, display_order: event.target.value })} />
               </div>
             </div>
 

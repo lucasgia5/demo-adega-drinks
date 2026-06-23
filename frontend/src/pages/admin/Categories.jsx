@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const empty = { name: "", description: "", icon: "" };
@@ -56,6 +56,18 @@ export default function Categories() {
     }
   };
 
+  const moveCategory = async (category, direction) => {
+    try {
+      const { data } = await api.post("/admin/categories/reorder", {
+        id: category.id,
+        direction,
+      });
+      setCats(data);
+    } catch (e) {
+      toast.error(formatApiErrorDetail(e.response?.data?.detail) || "Erro ao reordenar categoria");
+    }
+  };
+
   return (
     <AdminLayout
       title="Categorias"
@@ -74,6 +86,24 @@ export default function Categories() {
               {c.description && <p className="text-sm text-stone-500">{c.description}</p>}
             </div>
             <div className="flex gap-1">
+              <button
+                onClick={() => moveCategory(c, "up")}
+                disabled={idx === 0}
+                data-testid={`move-category-up-${c.id}`}
+                className="h-8 w-8 grid place-items-center rounded-lg hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-35"
+                aria-label={`Subir ${c.name}`}
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => moveCategory(c, "down")}
+                disabled={idx === cats.length - 1}
+                data-testid={`move-category-down-${c.id}`}
+                className="h-8 w-8 grid place-items-center rounded-lg hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-35"
+                aria-label={`Descer ${c.name}`}
+              >
+                <ArrowDown className="h-4 w-4" />
+              </button>
               <button onClick={() => openEdit(c)} data-testid={`edit-category-${c.id}`} className="h-8 w-8 grid place-items-center rounded-lg hover:bg-stone-100">
                 <Pencil className="h-4 w-4" />
               </button>

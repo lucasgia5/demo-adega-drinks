@@ -128,6 +128,61 @@ app = FastAPI(title=f"{STORE_CONFIG['name']} API")
 api_router = APIRouter(prefix="/api")
 
 
+# ---------------------------------------------------------------------------
+# Catalog ordering
+# ---------------------------------------------------------------------------
+def has_display_order(doc: dict) -> bool:
+    return isinstance(doc.get("display_order"), int)
+
+
+def sort_catalog_docs(docs: List[dict], catalog_type: Literal["products", "categories", "combos"]) -> List[dict]:
+    if catalog_type == "products":
+        fallback = sorted(docs, key=lambda doc: doc.get("created_at", ""), reverse=True)
+    elif catalog_type == "categories":
+        fallback = sorted(docs, key=lambda doc: (doc.get("name") or "").lower())
+    else:
+        created_desc = sorted(docs, key=lambda doc: doc.get("created_at", ""), reverse=True)
+        fallback = sorted(
+            created_desc,
+            key=lambda doc: doc.get("display_order") if has_display_order(doc) else 0,
+        )
+
+    fallback_rank = {doc.get("id"): index for index, doc in enumerate(fallback)}
+    return sorted(
+        docs,
+        key=lambda doc: (
+            0 if has_display_order(doc) else 1,
+            doc.get("display_order") if has_display_order(doc) else fallback_rank.get(doc.get("id"), 0),
+            fallback_rank.get(doc.get("id"), 0),
+        ),
+    )
+
+
+async def fetch_ordered_catalog_docs(collection, catalog_type: Literal["products", "categories", "combos"], query: dict | None = None) -> List[dict]:
+    docs = await collection.find(query or {}, {"_id": 0}).to_list(1000)
+    return sort_catalog_docs(docs, catalog_type)
+
+
+async def reorder_catalog_item(collection, catalog_type: Literal["products", "categories", "combos"], payload) -> List[dict]:
+    docs = await fetch_ordered_catalog_docs(collection, catalog_type)
+    index = next((idx for idx, doc in enumerate(docs) if doc.get("id") == payload.id), -1)
+    if index < 0:
+        raise HTTPException(status_code=404, detail="Item não encontrado")
+
+    target_index = index - 1 if payload.direction == "up" else index + 1
+    if target_index < 0 or target_index >= len(docs):
+        return docs
+
+    docs[index], docs[target_index] = docs[target_index], docs[index]
+    for display_order, doc in enumerate(docs):
+        await collection.update_one(
+            {"id": doc["id"]},
+            {"$set": {"display_order": display_order}},
+        )
+        doc["display_order"] = display_order
+    return docs
+
+
 def get_jwt_secret() -> str:
     return require_env("JWT_SECRET")
 
@@ -278,6 +333,7 @@ class CategoryIn(BaseModel):
     name: str
     description: Optional[str] = None
     icon: Optional[str] = None
+    display_order: Optional[int] = Field(default=None, ge=0)
 
 
 class Category(CategoryIn):
@@ -294,6 +350,7 @@ class ProductIn(BaseModel):
     available: bool = True
     promo_active: bool = False
     promo_price: Optional[float] = Field(default=None, ge=0)
+    display_order: Optional[int] = Field(default=None, ge=0)
 
 
 class Product(ProductIn):
@@ -313,12 +370,17 @@ class ComboIn(BaseModel):
     products: List[ComboProductIn]
     promotional_price: float = Field(ge=0)
     active: bool = True
-    display_order: int = Field(default=0, ge=0)
+    display_order: Optional[int] = Field(default=None, ge=0)
 
 
 class Combo(ComboIn):
     id: str
     created_at: str
+
+
+class ReorderIn(BaseModel):
+    id: str
+    direction: Literal["up", "down"]
 
 
 class OrderItemIn(BaseModel):
@@ -574,8 +636,7 @@ async def update_admin_store_settings(
 # ---------------------------------------------------------------------------
 @api_router.get("/categories")
 async def list_categories():
-    docs = await db.categories.find({}, {"_id": 0}).sort("name", 1).to_list(1000)
-    return docs
+    return await fetch_ordered_catalog_docs(db.categories, "categories")
 
 
 @api_router.post("/categories")
@@ -587,6 +648,8 @@ async def create_category(payload: CategoryIn, _: dict = Depends(require_admin))
         "icon": payload.icon or "",
         "created_at": iso(now_utc()),
     }
+    if payload.display_order is not None:
+        doc["display_order"] = payload.display_order
     await db.categories.insert_one(doc)
     doc.pop("_id", None)
     return doc
@@ -594,14 +657,14 @@ async def create_category(payload: CategoryIn, _: dict = Depends(require_admin))
 
 @api_router.put("/categories/{cat_id}")
 async def update_category(cat_id: str, payload: CategoryIn, _: dict = Depends(require_admin)):
-    res = await db.categories.update_one(
-        {"id": cat_id},
-        {"$set": {
-            "name": payload.name.strip(),
-            "description": payload.description or "",
-            "icon": payload.icon or "",
-        }},
-    )
+    update = {
+        "name": payload.name.strip(),
+        "description": payload.description or "",
+        "icon": payload.icon or "",
+    }
+    if payload.display_order is not None:
+        update["display_order"] = payload.display_order
+    res = await db.categories.update_one({"id": cat_id}, {"$set": update})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
     doc = await db.categories.find_one({"id": cat_id}, {"_id": 0})
@@ -617,6 +680,11 @@ async def delete_category(cat_id: str, _: dict = Depends(require_admin)):
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
     return {"ok": True}
+
+
+@api_router.post("/admin/categories/reorder")
+async def reorder_categories(payload: ReorderIn, _: dict = Depends(require_admin)):
+    return await reorder_catalog_item(db.categories, "categories", payload)
 
 
 # ---------------------------------------------------------------------------
@@ -669,8 +737,7 @@ async def list_products(category_id: Optional[str] = None, search: Optional[str]
         query["category_id"] = category_id
     if search:
         query["name"] = {"$regex": search, "$options": "i"}
-    docs = await db.products.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    return docs
+    return await fetch_ordered_catalog_docs(db.products, "products", query)
 
 
 @api_router.post("/admin/products/upload-image")
@@ -709,6 +776,8 @@ async def get_product(prod_id: str):
 @api_router.post("/products")
 async def create_product(payload: ProductIn, _: dict = Depends(require_admin)):
     doc = payload.model_dump()
+    if doc.get("display_order") is None:
+        doc.pop("display_order", None)
     doc["id"] = str(uuid.uuid4())
     doc["created_at"] = iso(now_utc())
     await db.products.insert_one(doc)
@@ -718,7 +787,10 @@ async def create_product(payload: ProductIn, _: dict = Depends(require_admin)):
 
 @api_router.put("/products/{prod_id}")
 async def update_product(prod_id: str, payload: ProductIn, _: dict = Depends(require_admin)):
-    res = await db.products.update_one({"id": prod_id}, {"$set": payload.model_dump()})
+    update = payload.model_dump()
+    if update.get("display_order") is None:
+        update.pop("display_order", None)
+    res = await db.products.update_one({"id": prod_id}, {"$set": update})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
     doc = await db.products.find_one({"id": prod_id}, {"_id": 0})
@@ -734,6 +806,11 @@ async def delete_product(prod_id: str, _: dict = Depends(require_admin)):
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
     return {"ok": True}
+
+
+@api_router.post("/admin/products/reorder")
+async def reorder_products(payload: ReorderIn, _: dict = Depends(require_admin)):
+    return await reorder_catalog_item(db.products, "products", payload)
 
 
 # ---------------------------------------------------------------------------
@@ -784,18 +861,14 @@ async def validate_combo_payload(payload: ComboIn) -> None:
 
 @api_router.get("/combos")
 async def list_public_combos():
-    docs = await db.combos.find(
-        {"active": True}, {"_id": 0}
-    ).sort([("display_order", 1), ("created_at", -1)]).to_list(1000)
+    docs = await fetch_ordered_catalog_docs(db.combos, "combos", {"active": True})
     combos = [await combo_response(doc) for doc in docs]
     return [combo for combo in combos if combo["purchasable"]]
 
 
 @api_router.get("/admin/combos")
 async def list_admin_combos(_: dict = Depends(require_admin)):
-    docs = await db.combos.find({}, {"_id": 0}).sort(
-        [("display_order", 1), ("created_at", -1)]
-    ).to_list(1000)
+    docs = await fetch_ordered_catalog_docs(db.combos, "combos")
     return [await combo_response(doc) for doc in docs]
 
 
@@ -805,6 +878,8 @@ async def create_combo(payload: ComboIn, _: dict = Depends(require_admin)):
     doc = payload.model_dump()
     doc["name"] = payload.name.strip()
     doc["description"] = payload.description or ""
+    if doc.get("display_order") is None:
+        doc.pop("display_order", None)
     doc["id"] = str(uuid.uuid4())
     doc["created_at"] = iso(now_utc())
     await db.combos.insert_one(doc)
@@ -818,6 +893,8 @@ async def update_combo(combo_id: str, payload: ComboIn, _: dict = Depends(requir
     update = payload.model_dump()
     update["name"] = payload.name.strip()
     update["description"] = payload.description or ""
+    if update.get("display_order") is None:
+        update.pop("display_order", None)
     res = await db.combos.update_one({"id": combo_id}, {"$set": update})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Combo não encontrado")
@@ -831,6 +908,12 @@ async def delete_combo(combo_id: str, _: dict = Depends(require_admin)):
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Combo não encontrado")
     return {"ok": True}
+
+
+@api_router.post("/admin/combos/reorder")
+async def reorder_combos(payload: ReorderIn, _: dict = Depends(require_admin)):
+    docs = await reorder_catalog_item(db.combos, "combos", payload)
+    return [await combo_response(doc) for doc in docs]
 
 
 # ---------------------------------------------------------------------------
@@ -1121,6 +1204,8 @@ async def admin_stats(_: dict = Depends(require_admin)):
 async def on_startup():
     await db.users.create_index("email", unique=True)
     await db.products.create_index("category_id")
+    await db.products.create_index("display_order")
+    await db.categories.create_index("display_order")
     await db.combos.create_index([("active", 1), ("display_order", 1)])
     await db.orders.create_index("created_at")
     await db.delivery_areas.create_index("name")
