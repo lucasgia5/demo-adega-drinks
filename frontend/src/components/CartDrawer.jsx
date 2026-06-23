@@ -17,6 +17,11 @@ export default function CartDrawer() {
     navigate("/checkout");
   };
 
+  const continueShopping = () => {
+    setIsOpen(false);
+    navigate("/");
+  };
+
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetContent side="right" className="w-full sm:max-w-md bg-brand-cream p-0 flex flex-col">
@@ -120,6 +125,15 @@ export default function CartDrawer() {
             className="w-full h-12 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium"
           >
             Finalizar Pedido pelo WhatsApp
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={continueShopping}
+            className="w-full h-11 rounded-xl"
+            data-testid="continue-shopping"
+          >
+            Continuar comprando
           </Button>
         </div>
       </SheetContent>

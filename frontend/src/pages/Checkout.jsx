@@ -317,7 +317,7 @@ export default function Checkout() {
         ) : (
           <>
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate("/")}
           className="inline-flex items-center text-sm text-stone-600 hover:text-brand mb-4"
           data-testid="back-checkout"
         >

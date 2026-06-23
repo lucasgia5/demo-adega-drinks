@@ -658,6 +658,10 @@ async def upload_product_image_to_cloudinary(file: UploadFile) -> str:
     return await upload_image_to_cloudinary(file, "ecomm-white-label/products")
 
 
+async def upload_combo_image_to_cloudinary(file: UploadFile) -> str:
+    return await upload_image_to_cloudinary(file, "ecomm-white-label/combos")
+
+
 @api_router.get("/products")
 async def list_products(category_id: Optional[str] = None, search: Optional[str] = None):
     query: dict = {}
@@ -672,6 +676,12 @@ async def list_products(category_id: Optional[str] = None, search: Optional[str]
 @api_router.post("/admin/products/upload-image")
 async def upload_product_image(file: UploadFile = File(...), _: dict = Depends(require_admin)):
     secure_url = await upload_product_image_to_cloudinary(file)
+    return {"image_url": secure_url}
+
+
+@api_router.post("/admin/combos/upload-image")
+async def upload_combo_image(file: UploadFile = File(...), _: dict = Depends(require_admin)):
+    secure_url = await upload_combo_image_to_cloudinary(file)
     return {"image_url": secure_url}
 
 

@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Lock } from "lucide-react";
+import { Lock, Store } from "lucide-react";
 
 export default function AdminLogin() {
   const { login } = useAuth();
@@ -33,6 +33,14 @@ export default function AdminLogin() {
   return (
     <div className="min-h-screen bg-stone-900 text-white grid place-items-center px-4">
       <div className="w-full max-w-md">
+        <Link
+          to="/"
+          className="mb-6 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-stone-100 transition-colors hover:bg-white/10"
+          data-testid="admin-login-view-store"
+        >
+          <Store className="h-4 w-4" />
+          Ver loja
+        </Link>
         <div className="text-center mb-6">
           <div className="inline-flex h-12 w-12 rounded-xl bg-brand grid place-items-center mb-3">
             <Lock className="h-5 w-5" />

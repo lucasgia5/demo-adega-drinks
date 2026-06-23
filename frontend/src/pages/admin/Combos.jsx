@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 
 const empty = {
@@ -29,6 +29,8 @@ export default function Combos() {
   const [editing, setEditing] = useState(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState("");
 
   const load = async () => {
     const [{ data: comboData }, { data: productData }] = await Promise.all([
@@ -46,6 +48,7 @@ export default function Combos() {
   const openNew = () => {
     setEditing(null);
     setForm(empty);
+    setImagePreview("");
     setOpen(true);
   };
 
@@ -60,7 +63,31 @@ export default function Combos() {
       display_order: String(combo.display_order || 0),
       products: combo.products || [],
     });
+    setImagePreview(combo.image_url || "");
     setOpen(true);
+  };
+
+  const uploadImage = async (file) => {
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview(previewUrl);
+    setUploadingImage(true);
+    try {
+      const data = new FormData();
+      data.append("file", file);
+      const { data: upload } = await api.post("/admin/combos/upload-image", data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setForm((current) => ({ ...current, image_url: upload.image_url }));
+      setImagePreview(upload.image_url);
+      toast.success("Imagem enviada");
+    } catch (error) {
+      setImagePreview(form.image_url);
+      toast.error(formatApiErrorDetail(error.response?.data?.detail) || "Erro ao enviar imagem");
+    } finally {
+      URL.revokeObjectURL(previewUrl);
+      setUploadingImage(false);
+    }
   };
 
   const selectedQuantity = (productId) =>
@@ -222,9 +249,46 @@ export default function Combos() {
               <Label>Descrição</Label>
               <Textarea rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
             </div>
-            <div>
-              <Label>URL da imagem (opcional)</Label>
-              <Input placeholder="https://..." value={form.image_url} onChange={(event) => setForm({ ...form, image_url: event.target.value })} />
+            <div className="space-y-3 rounded-xl border border-stone-200 p-3">
+              <div>
+                <Label>URL da imagem (opcional)</Label>
+                <Input
+                  data-testid="form-combo-image"
+                  placeholder="https://..."
+                  value={form.image_url}
+                  onChange={(event) => {
+                    setForm({ ...form, image_url: event.target.value });
+                    setImagePreview(event.target.value);
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="combo-image-upload">Upload de imagem</Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    id="combo-image-upload"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    data-testid="form-combo-image-upload"
+                    onChange={(event) => uploadImage(event.target.files?.[0])}
+                    disabled={uploadingImage}
+                  />
+                  <span className="inline-flex items-center gap-1 text-xs text-stone-500">
+                    <UploadCloud className="h-3.5 w-3.5" />
+                    JPG, PNG ou WEBP até 5MB
+                  </span>
+                </div>
+                {uploadingImage && <p className="text-xs text-stone-500">Enviando imagem...</p>}
+              </div>
+              {imagePreview && (
+                <div className="overflow-hidden rounded-xl border border-stone-200 bg-stone-50">
+                  <img
+                    src={imagePreview}
+                    alt="Prévia do combo"
+                    className="h-40 w-full object-cover"
+                  />
+                </div>
+              )}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>

@@ -61,7 +61,12 @@ function App() {
                   <ProtectedRoute requireAdmin><AdminStoreSettings /></ProtectedRoute>
                 } />
               </Routes>
-              <Toaster position="top-right" richColors />
+              <Toaster
+                position="bottom-right"
+                richColors
+                duration={3000}
+                mobileOffset="16px"
+              />
             </BrowserRouter>
           </CartProvider>
         </AuthProvider>

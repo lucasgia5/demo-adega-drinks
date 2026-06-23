@@ -161,10 +161,9 @@ export default function Storefront() {
                 testId={`category-chip-${c.id}`}
               />
             ))}
-            </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       {/* Products grid */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 pb-20">

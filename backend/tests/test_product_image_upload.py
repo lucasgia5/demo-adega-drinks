@@ -74,6 +74,35 @@ def test_admin_can_upload_product_image(monkeypatch):
     server.app.dependency_overrides.clear()
 
 
+def test_guest_cannot_upload_combo_image(monkeypatch):
+    server = import_server(monkeypatch)
+    client = TestClient(server.app)
+
+    response = client.post("/api/admin/combos/upload-image", files=valid_png_file())
+
+    assert response.status_code == 401
+
+
+def test_admin_can_upload_combo_image(monkeypatch):
+    server = import_server(monkeypatch)
+    server.app.dependency_overrides[server.require_admin] = lambda: {
+        "id": "admin-id",
+        "role": "admin",
+    }
+    monkeypatch.setattr(
+        server.cloudinary.uploader,
+        "upload",
+        lambda *args, **kwargs: {"secure_url": "https://res.cloudinary.com/demo/combo.png"},
+    )
+    client = TestClient(server.app)
+
+    response = client.post("/api/admin/combos/upload-image", files=valid_png_file())
+
+    assert response.status_code == 200
+    assert response.json() == {"image_url": "https://res.cloudinary.com/demo/combo.png"}
+    server.app.dependency_overrides.clear()
+
+
 def test_invalid_product_image_type_is_rejected(monkeypatch):
     server = import_server(monkeypatch)
     server.app.dependency_overrides[server.require_admin] = lambda: {
@@ -85,6 +114,24 @@ def test_invalid_product_image_type_is_rejected(monkeypatch):
     response = client.post(
         "/api/admin/products/upload-image",
         files={"file": ("product.txt", b"not an image", "text/plain")},
+    )
+
+    assert response.status_code == 400
+    assert "Tipo de arquivo inválido" in response.json()["detail"]
+    server.app.dependency_overrides.clear()
+
+
+def test_invalid_combo_image_type_is_rejected(monkeypatch):
+    server = import_server(monkeypatch)
+    server.app.dependency_overrides[server.require_admin] = lambda: {
+        "id": "admin-id",
+        "role": "admin",
+    }
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/api/admin/combos/upload-image",
+        files={"file": ("combo.txt", b"not an image", "text/plain")},
     )
 
     assert response.status_code == 400
