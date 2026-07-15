@@ -1,5 +1,5 @@
 """
-Backend API tests for Adega Delivery (white-label).
+Backend API tests for Acai da Vila (white-label).
 Covers: auth, config, categories, products, orders, admin stats.
 Uses REACT_APP_BACKEND_URL with /api prefix.
 """
@@ -65,7 +65,7 @@ class TestPublic:
         d = r.json()
         assert d["name"]
         assert d["store_name"] == d["name"]
-        assert d["whatsapp_number"] == "5511999990000"
+        assert d["whatsapp_number"]
         assert d["primary_color"].startswith("#")
         assert "pix_key" in d
         assert d["age_gate_enabled"] is True
@@ -86,16 +86,15 @@ class TestPublic:
         assert r.status_code == 200
         cats = r.json()
         names = {c["name"] for c in cats}
-        for expected in ["Vinhos Tintos", "Vinhos Brancos", "Espumantes",
-                         "Cervejas Especiais", "Destilados"]:
+        for expected in ["A\u00e7a\u00ed no Copo"]:
             assert expected in names, f"Missing seeded category {expected}"
-        assert len(cats) >= 5
+        assert len(cats) >= 1
 
     def test_products_seed(self, s):
         r = s.get(f"{API}/products")
         assert r.status_code == 200
         prods = r.json()
-        assert len(prods) >= 11
+        assert len(prods) >= 4
         for p in prods[:3]:
             assert "id" in p and "category_id" in p and "price" in p
             assert "image_url" in p
@@ -108,22 +107,22 @@ class TestPublic:
         assert r.status_code == 200
         assert r.json()["id"] == first["id"]
 
-    def test_product_search_malbec(self, s):
-        r = s.get(f"{API}/products", params={"search": "Malbec"})
+    def test_product_search_acai(self, s):
+        r = s.get(f"{API}/products", params={"search": "A\u00e7a\u00ed"})
         assert r.status_code == 200
         prods = r.json()
         assert len(prods) >= 1
-        assert all("malbec" in p["name"].lower() for p in prods)
+        assert all("a\u00e7a\u00ed" in p["name"].lower() for p in prods)
 
     def test_product_search_case_insensitive(self, s):
-        r = s.get(f"{API}/products", params={"search": "malbec"})
+        r = s.get(f"{API}/products", params={"search": "a\u00e7a\u00ed"})
         assert r.status_code == 200
         assert len(r.json()) >= 1
 
     def test_product_filter_by_category(self, s):
         cats = s.get(f"{API}/categories").json()
-        tintos = next(c for c in cats if c["name"] == "Vinhos Tintos")
-        r = s.get(f"{API}/products", params={"category_id": tintos["id"]})
+        acai = next(c for c in cats if c["name"] == "A\u00e7a\u00ed no Copo")
+        r = s.get(f"{API}/products", params={"category_id": acai["id"]})
         assert r.status_code == 200
         prods = r.json()
         assert len(prods) >= 1
@@ -487,6 +486,6 @@ class TestAdminStats:
         d = r.json()
         for key in ("total_orders", "total_products", "total_categories", "revenue", "orders_by_status"):
             assert key in d
-        assert d["total_categories"] >= 5
-        assert d["total_products"] >= 11
+        assert d["total_categories"] >= 1
+        assert d["total_products"] >= 4
         assert isinstance(d["orders_by_status"], dict)

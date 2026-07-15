@@ -1479,15 +1479,19 @@ async def on_startup():
     # Seed sample categories/products only if empty
     if await db.categories.count_documents({}) == 0:
         cat_ids = {}
-        for c in SEED_CATEGORIES:
+        for index, c in enumerate(SEED_CATEGORIES):
             cid = str(uuid.uuid4())
             await db.categories.insert_one({
-                "id": cid, "name": c["name"], "description": "",
-                "icon": c["icon"], "created_at": iso(now_utc()),
+                "id": cid,
+                "name": c["name"],
+                "description": c.get("description", ""),
+                "icon": c.get("icon", ""),
+                "display_order": c.get("display_order", index),
+                "created_at": iso(now_utc()),
             })
             cat_ids[c["name"]] = cid
 
-        for product in SEED_PRODUCTS:
+        for index, product in enumerate(SEED_PRODUCTS):
             await db.products.insert_one({
                 "id": str(uuid.uuid4()),
                 "name": product["name"],
@@ -1498,6 +1502,8 @@ async def on_startup():
                 "available": True,
                 "promo_active": product["promo_active"],
                 "promo_price": product["promo_price"],
+                "display_order": product.get("display_order", index),
+                "option_groups": normalize_product_option_groups(product.get("option_groups", [])),
                 "created_at": iso(now_utc()),
             })
         logger.info("Seeded sample categories and products")
