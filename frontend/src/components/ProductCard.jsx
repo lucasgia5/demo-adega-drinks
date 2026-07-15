@@ -1,12 +1,16 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { brl } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
+import ProductCustomizationDialog, { activeOptionGroups } from "@/components/ProductCustomizationDialog";
 
 export default function ProductCard({ product }) {
   const { add } = useCart();
+  const [customizing, setCustomizing] = useState(false);
   const isPromo = product.promo_active && product.promo_price != null;
   const unavailable = !product.available;
+  const hasActiveOptionGroups = activeOptionGroups(product).length > 0;
 
   return (
     <div
@@ -68,7 +72,7 @@ export default function ProductCard({ product }) {
 
           <button
             disabled={unavailable}
-            onClick={() => add(product)}
+            onClick={() => (hasActiveOptionGroups ? setCustomizing(true) : add(product))}
             data-testid={`add-to-cart-btn-${product.id}`}
             aria-label="Adicionar ao carrinho"
             className="h-10 w-10 rounded-xl bg-brand text-white grid place-items-center hover:bg-brand-dark transition-colors disabled:bg-stone-300 disabled:cursor-not-allowed"
@@ -77,6 +81,11 @@ export default function ProductCard({ product }) {
           </button>
         </div>
       </div>
+      <ProductCustomizationDialog
+        product={product}
+        open={customizing}
+        onOpenChange={setCustomizing}
+      />
     </div>
   );
 }

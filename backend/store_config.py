@@ -5,28 +5,28 @@ name, logo, colors, banner, WhatsApp, Pix, address, public domain,
 age gate and business hours.
 
 Example for a custom store:
-- name: "Adega Drinks"
-- tagline: "os melhor copão de cidade"
+- name: "A\u00e7a\u00ed da Vila"
+- tagline: "a\u00e7a\u00ed montado do seu jeito"
 - primary_color / secondary_color: brand palette
 - banner_url: hero image aligned with the store identity
 """
 
 STORE_CONFIG = {
-    "name": "Adega Drinks",
-    "tagline": "o melhor copão de cidade",
-    "search_placeholder": "Buscar produtos...",
-    "logo_url": "",  # leave empty to render text logo
-    "store_logo_url": "",
-    "primary_color": "#3B2416",  # Dark brown
-    "secondary_color": "#D49A2A",  # Amber gold
-    "whatsapp_number": "5511984122002",  # international format, digits only
-    "address": "Rua das Vinhas, 123 - Centro, São Paulo - SP",
+    "name": "A\u00e7a\u00ed da Vila",
+    "tagline": "A\u00e7a\u00ed cremoso montado do seu jeito",
+    "search_placeholder": "Buscar copos, frutas e adicionais...",
+    "logo_url": "https://placehold.co/640x240/5B1A78/F8D24E/png?text=Acai+da+Vila",
+    "store_logo_url": "https://placehold.co/640x240/5B1A78/F8D24E/png?text=Acai+da+Vila",
+    "primary_color": "#5B1A78",
+    "secondary_color": "#2FBF71",
+    "whatsapp_number": "5511984122002",
+    "address": "Rua das Vinhas, 123 - Centro, S\u00e3o Paulo - SP",
     "pix_key": "contato@adegadrinks.com.br",
     "pix_key_type": "E-mail",
-    "banner_url": "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=2000&q=85",
-    "store_banner_url": "",
-    "banner_title": "Adega Drinks",
-    "banner_subtitle": "o melhor copão de cidade",
+    "banner_url": "https://placehold.co/1600x900/5B1A78/FFFFFF/png?text=Acai+cremoso+montado+do+seu+jeito",
+    "store_banner_url": "https://placehold.co/1600x900/5B1A78/FFFFFF/png?text=Acai+cremoso+montado+do+seu+jeito",
+    "banner_title": "A\u00e7a\u00ed da Vila",
+    "banner_subtitle": "Escolha o tamanho, combine frutas, acompanhamentos e coberturas.",
     "banner_button_text": "",
     "banner_button_link": "",
     "banner_enabled": True,
@@ -34,13 +34,13 @@ STORE_CONFIG = {
     "currency_symbol": "R$",
     "currency_code": "BRL",
     "delivery_note": "Trabalhamos com entregas e retiradas",
-    "checkout_note": "Seu pedido será aberto no WhatsApp da loja já preenchido.",
+    "checkout_note": "Seu pedido ser\u00e1 aberto no WhatsApp da loja j\u00e1 preenchido.",
     "age_gate_enabled": True,
     "age_gate_min_age": 18,
-    "age_gate_title": "Você tem 18 anos ou mais?",
+    "age_gate_title": "Voc\u00ea tem 18 anos ou mais?",
     "age_gate_message": (
-        "Para acessar esta loja, confirme que você tem idade legal "
-        "para consumir bebidas alcoólicas."
+        "Para acessar esta loja, confirme que voc\u00ea tem idade legal "
+        "para consumir bebidas alco\u00f3licas."
     ),
     "business_hours_enabled": True,
     "business_hours_timezone": "America/Sao_Paulo",

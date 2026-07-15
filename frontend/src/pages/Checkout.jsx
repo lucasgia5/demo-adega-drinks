@@ -32,6 +32,25 @@ const FULFILLMENT_LABELS = {
   pickup: "Retirada no local",
 };
 
+const formatSelectedOptionsForWhatsApp = (item) => {
+  const groups = new Map();
+  (item.selected_options || []).forEach((option) => {
+    if (!groups.has(option.group_id)) {
+      groups.set(option.group_id, { name: option.group_name, options: [] });
+    }
+    groups.get(option.group_id).options.push(option);
+  });
+  return Array.from(groups.values()).map((group) => {
+    const optionText = group.options.map((option) => {
+      const qtyPrefix = option.quantity > 1 ? `${option.quantity}x ` : "";
+      const additionalTotal = Number(option.additional_price || 0) * Number(option.quantity || 1);
+      const priceText = additionalTotal > 0 ? ` (+ ${brl(additionalTotal)})` : "";
+      return `${qtyPrefix}${option.option_name}${priceText}`;
+    }).join(", ");
+    return `${group.name}: ${optionText}`;
+  });
+};
+
 const isMobileDevice = () => {
   if (navigator.userAgentData?.mobile === true) return true;
   if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return true;
@@ -127,6 +146,14 @@ export default function Checkout() {
         });
       } else {
         lines.push(`• ${i.quantity}x ${i.name} — ${brl(i.unit_price * i.quantity)}`);
+      }
+      if (i.item_type !== "combo") {
+        formatSelectedOptionsForWhatsApp(i).forEach((line) => {
+          lines.push(`  ${line}`);
+        });
+        if (i.item_observation) {
+          lines.push(`  Observação: ${i.item_observation}`);
+        }
       }
     });
     lines.push("");
@@ -239,6 +266,12 @@ export default function Checkout() {
                 item_type: "product",
                 product_id: i.product_id,
                 quantity: i.quantity,
+                selected_options: (i.selected_options || []).map((option) => ({
+                  group_id: option.group_id,
+                  option_id: option.option_id,
+                  quantity: option.quantity,
+                })),
+                item_observation: i.item_observation || "",
               }
         ),
         observations: form.observations,

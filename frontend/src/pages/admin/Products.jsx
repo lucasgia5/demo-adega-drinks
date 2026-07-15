@@ -12,12 +12,64 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ArrowDown, ArrowUp, Plus, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import ProductOptionGroupsEditor from "@/components/admin/ProductOptionGroupsEditor";
+import CopyProductOptionsDialog from "@/components/admin/CopyProductOptionsDialog";
+import { stripOptionGroupIds } from "@/components/admin/productOptionUtils";
 
 const empty = {
   name: "", description: "", image_url: "", price: "",
   category_id: "", available: true, promo_active: false, promo_price: "",
+  option_groups: [],
+};
+
+const toInt = (value, fallback = 0) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const toMoney = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizeOptionGroups = (groups = []) =>
+  groups.map((group, groupIndex) => ({
+    ...(group.id ? { id: group.id } : {}),
+    name: (group.name || "").trim(),
+    description: group.description || "",
+    highlight_text: group.highlight_text || "",
+    required: group.required === true,
+    min_selections: Math.max(0, toInt(group.min_selections, 0)),
+    max_selections: Math.max(0, toInt(group.max_selections, 1)),
+    selection_type: group.selection_type || "single",
+    order: groupIndex,
+    active: group.active !== false,
+    options: (group.options || []).map((option, optionIndex) => ({
+      ...(option.id ? { id: option.id } : {}),
+      name: (option.name || "").trim(),
+      description: option.description || "",
+      additional_price: toMoney(option.additional_price),
+      max_quantity: Math.max(1, toInt(option.max_quantity, 1)),
+      order: optionIndex,
+      active: option.active !== false,
+      recommended: option.recommended === true,
+      popular: option.popular === true,
+    })),
+  }));
+
+const validateOptionGroups = (groups = []) => {
+  for (const group of groups) {
+    if (!group.name) return "Preencha o nome de todos os grupos de opções";
+    if (group.max_selections < group.min_selections) {
+      return `O máximo de escolhas não pode ser menor que o mínimo em "${group.name}"`;
+    }
+    for (const option of group.options || []) {
+      if (option.additional_price < 0) return "Preço adicional não pode ser negativo";
+    }
+  }
+  return "";
 };
 
 export default function Products() {
@@ -29,6 +81,7 @@ export default function Products() {
   const [busy, setBusy] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imagePreview, setImagePreview] = useState("");
+  const [copyOptionsOpen, setCopyOptionsOpen] = useState(false);
 
   const load = async () => {
     const [{ data: ps }, { data: cs }] = await Promise.all([
@@ -42,7 +95,7 @@ export default function Products() {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ ...empty, category_id: cats[0]?.id || "" });
+    setForm({ ...empty, option_groups: [], category_id: cats[0]?.id || "" });
     setImagePreview("");
     setOpen(true);
   };
@@ -52,6 +105,7 @@ export default function Products() {
       name: p.name, description: p.description || "", image_url: p.image_url || "",
       price: String(p.price), category_id: p.category_id, available: p.available,
       promo_active: p.promo_active, promo_price: p.promo_price != null ? String(p.promo_price) : "",
+      option_groups: p.option_groups || [],
     });
     setImagePreview(p.image_url || "");
     setOpen(true);
@@ -85,6 +139,12 @@ export default function Products() {
       toast.error("Preencha nome, categoria e preço");
       return;
     }
+    const optionGroups = normalizeOptionGroups(form.option_groups || []);
+    const optionGroupsError = validateOptionGroups(optionGroups);
+    if (optionGroupsError) {
+      toast.error(optionGroupsError);
+      return;
+    }
     setBusy(true);
     try {
       const payload = {
@@ -96,6 +156,7 @@ export default function Products() {
         available: form.available,
         promo_active: form.promo_active,
         promo_price: form.promo_active && form.promo_price !== "" ? Number(form.promo_price) : null,
+        option_groups: optionGroups,
       };
       if (editing) {
         await api.put(`/products/${editing.id}`, payload);
@@ -136,6 +197,39 @@ export default function Products() {
     } catch (e) {
       toast.error(formatApiErrorDetail(e.response?.data?.detail) || "Erro ao reordenar produto");
     }
+  };
+
+  const duplicateProduct = async (product) => {
+    const confirmed = window.confirm(`Duplicar "${product.name}" mantendo os grupos de opções?`);
+    if (!confirmed) return;
+    try {
+      const payload = {
+        name: `${product.name} (cópia)`,
+        description: product.description || "",
+        image_url: product.image_url || "",
+        price: Number(product.price || 0),
+        category_id: product.category_id,
+        available: product.available,
+        promo_active: product.promo_active,
+        promo_price: product.promo_active && product.promo_price != null ? Number(product.promo_price) : null,
+        option_groups: normalizeOptionGroups(stripOptionGroupIds(product.option_groups || [])),
+      };
+      await api.post("/products", payload);
+      toast.success("Produto duplicado");
+      await load();
+    } catch (e) {
+      toast.error(formatApiErrorDetail(e.response?.data?.detail) || "Erro ao duplicar produto");
+    }
+  };
+
+  const applyCopiedOptionGroups = ({ groups, mode }) => {
+    const currentGroups = form.option_groups || [];
+    const nextGroups = mode === "replace" ? groups : [...currentGroups, ...groups];
+    setForm({
+      ...form,
+      option_groups: nextGroups.map((group, order) => ({ ...group, order })),
+    });
+    toast.success("Opções copiadas");
   };
 
   return (
@@ -213,6 +307,9 @@ export default function Products() {
                   <button onClick={() => openEdit(p)} data-testid={`edit-product-${p.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-stone-100">
                     <Pencil className="h-4 w-4" />
                   </button>
+                  <button onClick={() => duplicateProduct(p)} data-testid={`duplicate-product-${p.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-stone-100" aria-label={`Duplicar ${p.name}`}>
+                    <Copy className="h-4 w-4" />
+                  </button>
                   <button onClick={() => remove(p)} data-testid={`delete-product-${p.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-red-50 text-red-600">
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -224,7 +321,7 @@ export default function Products() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl">{editing ? "Editar produto" : "Novo produto"}</DialogTitle>
           </DialogHeader>
@@ -297,6 +394,11 @@ export default function Products() {
                 </div>
               )}
             </div>
+            <ProductOptionGroupsEditor
+              value={form.option_groups || []}
+              onChange={(option_groups) => setForm({ ...form, option_groups })}
+              onOpenCopyDialog={() => setCopyOptionsOpen(true)}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -306,6 +408,14 @@ export default function Products() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CopyProductOptionsDialog
+        open={copyOptionsOpen}
+        onOpenChange={setCopyOptionsOpen}
+        products={products}
+        currentProductId={editing?.id}
+        currentGroups={form.option_groups || []}
+        onApply={applyCopiedOptionGroups}
+      />
     </AdminLayout>
   );
 }
