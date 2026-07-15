@@ -18,7 +18,7 @@ import jwt
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, File, Request, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from pydantic import BaseModel, Field, EmailStr, ConfigDict, model_validator
 
 from seed_config import SEED_CATEGORIES, SEED_PRODUCTS
 from store_config import STORE_CONFIG
@@ -183,6 +183,53 @@ async def reorder_catalog_item(collection, catalog_type: Literal["products", "ca
     return docs
 
 
+def sort_product_option_groups(option_groups: Optional[List[dict]]) -> List[dict]:
+    sorted_groups = []
+    for group in sorted(option_groups or [], key=lambda g: (g.get("order", 0), g.get("name", ""))):
+        group_doc = dict(group)
+        group_doc["options"] = sorted(
+            [dict(option) for option in group_doc.get("options", [])],
+            key=lambda o: (o.get("order", 0), o.get("name", "")),
+        )
+        sorted_groups.append(group_doc)
+    return sorted_groups
+
+
+def with_sorted_product_options(product: dict) -> dict:
+    doc = dict(product)
+    doc["option_groups"] = sort_product_option_groups(doc.get("option_groups", []))
+    return doc
+
+
+def normalize_product_option_groups(option_groups: Optional[List[dict]]) -> List[dict]:
+    normalized_groups = []
+    seen_group_ids = set()
+    for group in option_groups or []:
+        group_doc = dict(group)
+        group_id = group_doc.get("id") or str(uuid.uuid4())
+        if group_id in seen_group_ids:
+            raise HTTPException(status_code=400, detail="Grupo de opções duplicado")
+        seen_group_ids.add(group_id)
+        group_doc["id"] = group_id
+
+        normalized_options = []
+        seen_option_ids = set()
+        for option in group_doc.get("options", []):
+            option_doc = dict(option)
+            option_id = option_doc.get("id") or str(uuid.uuid4())
+            if option_id in seen_option_ids:
+                raise HTTPException(status_code=400, detail="Opção duplicada no grupo")
+            seen_option_ids.add(option_id)
+            option_doc["id"] = option_id
+            normalized_options.append(option_doc)
+        group_doc["options"] = sorted(
+            normalized_options,
+            key=lambda option: (option.get("order", 0), option.get("name", "")),
+        )
+        normalized_groups.append(group_doc)
+    return sort_product_option_groups(normalized_groups)
+
+
 def get_jwt_secret() -> str:
     return require_env("JWT_SECRET")
 
@@ -341,6 +388,47 @@ class Category(CategoryIn):
     created_at: str
 
 
+class ProductOptionIn(BaseModel):
+    id: Optional[str] = None
+    name: str
+    description: Optional[str] = ""
+    additional_price: float = Field(default=0.0, ge=0)
+    max_quantity: int = Field(default=1, ge=1)
+    order: int = Field(default=0, ge=0)
+    active: bool = True
+    recommended: bool = False
+    popular: bool = False
+
+
+class ProductOption(ProductOptionIn):
+    id: str
+
+
+class ProductOptionGroupIn(BaseModel):
+    id: Optional[str] = None
+    name: str
+    description: Optional[str] = ""
+    highlight_text: Optional[str] = ""
+    required: bool = False
+    min_selections: int = Field(default=0, ge=0)
+    max_selections: int = Field(default=1, ge=0)
+    selection_type: Literal["single", "multiple", "quantity"] = "single"
+    order: int = Field(default=0, ge=0)
+    active: bool = True
+    options: List[ProductOptionIn] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_selection_bounds(self):
+        if self.max_selections < self.min_selections:
+            raise ValueError("max_selections não pode ser menor que min_selections")
+        return self
+
+
+class ProductOptionGroup(ProductOptionGroupIn):
+    id: str
+    options: List[ProductOption] = Field(default_factory=list)
+
+
 class ProductIn(BaseModel):
     name: str
     description: Optional[str] = ""
@@ -351,11 +439,13 @@ class ProductIn(BaseModel):
     promo_active: bool = False
     promo_price: Optional[float] = Field(default=None, ge=0)
     display_order: Optional[int] = Field(default=None, ge=0)
+    option_groups: List[ProductOptionGroupIn] = Field(default_factory=list)
 
 
 class Product(ProductIn):
     id: str
     created_at: str
+    option_groups: List[ProductOptionGroup] = Field(default_factory=list)
 
 
 class ComboProductIn(BaseModel):
@@ -383,11 +473,28 @@ class ReorderIn(BaseModel):
     direction: Literal["up", "down"]
 
 
+class SelectedProductOptionIn(BaseModel):
+    group_id: str
+    option_id: str
+    quantity: int = Field(default=1, ge=1)
+
+
+class SelectedProductOption(BaseModel):
+    group_id: str
+    group_name: str
+    option_id: str
+    option_name: str
+    quantity: int = Field(default=1, ge=1)
+    additional_price: float = Field(ge=0)
+
+
 class OrderItemIn(BaseModel):
     item_type: Literal["product", "combo"] = "product"
     product_id: Optional[str] = None
     combo_id: Optional[str] = None
     quantity: int = Field(ge=1)
+    selected_options: List[SelectedProductOptionIn] = Field(default_factory=list)
+    item_observation: Optional[str] = ""
 
 
 class OrderItem(BaseModel):
@@ -396,8 +503,11 @@ class OrderItem(BaseModel):
     combo_id: Optional[str] = None
     name: str
     quantity: int = Field(ge=1)
+    base_price: Optional[float] = Field(default=None, ge=0)
     unit_price: float = Field(ge=0)  # actual price charged (promo or regular)
     combo_items: List[dict] = Field(default_factory=list)
+    selected_options: List[SelectedProductOption] = Field(default_factory=list)
+    item_observation: str = ""
 
 
 class DeliveryAreaIn(BaseModel):
@@ -737,7 +847,8 @@ async def list_products(category_id: Optional[str] = None, search: Optional[str]
         query["category_id"] = category_id
     if search:
         query["name"] = {"$regex": search, "$options": "i"}
-    return await fetch_ordered_catalog_docs(db.products, "products", query)
+    docs = await fetch_ordered_catalog_docs(db.products, "products", query)
+    return [with_sorted_product_options(doc) for doc in docs]
 
 
 @api_router.post("/admin/products/upload-image")
@@ -770,7 +881,7 @@ async def get_product(prod_id: str):
     doc = await db.products.find_one({"id": prod_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
-    return doc
+    return with_sorted_product_options(doc)
 
 
 @api_router.post("/products")
@@ -778,23 +889,32 @@ async def create_product(payload: ProductIn, _: dict = Depends(require_admin)):
     doc = payload.model_dump()
     if doc.get("display_order") is None:
         doc.pop("display_order", None)
+    doc["option_groups"] = normalize_product_option_groups(doc.get("option_groups", []))
     doc["id"] = str(uuid.uuid4())
     doc["created_at"] = iso(now_utc())
     await db.products.insert_one(doc)
     doc.pop("_id", None)
-    return doc
+    return with_sorted_product_options(doc)
 
 
 @api_router.put("/products/{prod_id}")
 async def update_product(prod_id: str, payload: ProductIn, _: dict = Depends(require_admin)):
+    existing = await db.products.find_one({"id": prod_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Produto nÃ£o encontrado")
+
     update = payload.model_dump()
     if update.get("display_order") is None:
         update.pop("display_order", None)
+    if "option_groups" in payload.model_fields_set:
+        update["option_groups"] = normalize_product_option_groups(update.get("option_groups", []))
+    else:
+        update["option_groups"] = existing.get("option_groups", [])
     res = await db.products.update_one({"id": prod_id}, {"$set": update})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
     doc = await db.products.find_one({"id": prod_id}, {"_id": 0})
-    return doc
+    return with_sorted_product_options(doc)
 
 
 @api_router.delete("/products/{prod_id}")
@@ -937,6 +1057,90 @@ def resolve_product_price(product: dict) -> float:
     return round(price, 2)
 
 
+def resolve_selected_product_options(
+    product: dict,
+    selected_options: List[SelectedProductOptionIn],
+) -> tuple[List[SelectedProductOption], float]:
+    selections = selected_options or []
+    groups = sort_product_option_groups(product.get("option_groups", []))
+    active_groups = {group["id"]: group for group in groups if group.get("active", True)}
+
+    if selections and not active_groups:
+        raise HTTPException(status_code=400, detail="Produto não possui opções disponíveis")
+
+    selections_by_group: dict[str, List[SelectedProductOptionIn]] = {}
+    for selection in selections:
+        selections_by_group.setdefault(selection.group_id, []).append(selection)
+
+    resolved: List[SelectedProductOption] = []
+    additional_total = 0.0
+
+    for group in active_groups.values():
+        group_selections = selections_by_group.pop(group["id"], [])
+        selection_type = group.get("selection_type", "single")
+        selection_count = (
+            sum(selection.quantity for selection in group_selections)
+            if selection_type == "quantity"
+            else len(group_selections)
+        )
+        min_required = max(
+            int(group.get("min_selections", 0)),
+            1 if group.get("required", False) else 0,
+        )
+        max_allowed = int(group.get("max_selections", 0))
+
+        if selection_count < min_required:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Selecione pelo menos {min_required} opção(ões) em {group.get('name', 'grupo')}",
+            )
+        if max_allowed > 0 and selection_count > max_allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Selecione no máximo {max_allowed} opção(ões) em {group.get('name', 'grupo')}",
+            )
+
+        options = {
+            option["id"]: option
+            for option in group.get("options", [])
+            if option.get("active", True)
+        }
+        seen_options = set()
+        for selection in group_selections:
+            if selection.option_id in seen_options:
+                raise HTTPException(status_code=400, detail="Opção duplicada no pedido")
+            seen_options.add(selection.option_id)
+            option = options.get(selection.option_id)
+            if not option:
+                raise HTTPException(status_code=400, detail="Opção inválida")
+
+            if selection_type != "quantity" and selection.quantity != 1:
+                raise HTTPException(status_code=400, detail="Quantidade inválida para opção")
+            max_quantity = int(option.get("max_quantity", 1))
+            if selection.quantity > max_quantity:
+                raise HTTPException(status_code=400, detail="Quantidade maior que o permitido para opção")
+
+            additional_price = float(option.get("additional_price", 0) or 0)
+            if additional_price < 0:
+                raise HTTPException(status_code=400, detail="Opção com preço adicional inválido")
+            additional_total += additional_price * selection.quantity
+            resolved.append(
+                SelectedProductOption(
+                    group_id=group["id"],
+                    group_name=group.get("name", ""),
+                    option_id=option["id"],
+                    option_name=option.get("name", ""),
+                    quantity=selection.quantity,
+                    additional_price=round(additional_price, 2),
+                )
+            )
+
+    if selections_by_group:
+        raise HTTPException(status_code=400, detail="Grupo de opções inválido")
+
+    return resolved, round(additional_total, 2)
+
+
 async def build_priced_order_items(items: List[OrderItemIn]) -> List[OrderItem]:
     priced_items: List[OrderItem] = []
     for item in items:
@@ -987,13 +1191,23 @@ async def build_priced_order_items(items: List[OrderItemIn]) -> List[OrderItem]:
         if not product.get("available", True):
             raise HTTPException(status_code=400, detail="Produto indisponível")
 
+        selected_options, additional_total = resolve_selected_product_options(
+            product,
+            item.selected_options,
+        )
+        base_price = resolve_product_price(product)
+        unit_price = round(base_price + additional_total, 2)
+
         priced_items.append(
             OrderItem(
                 item_type="product",
                 product_id=product["id"],
                 name=product.get("name", ""),
                 quantity=item.quantity,
-                unit_price=resolve_product_price(product),
+                base_price=base_price,
+                unit_price=unit_price,
+                selected_options=selected_options,
+                item_observation=(item.item_observation or "").strip(),
             )
         )
     return priced_items

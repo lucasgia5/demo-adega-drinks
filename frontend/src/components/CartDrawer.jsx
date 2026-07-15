@@ -1,16 +1,19 @@
+import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCart } from "@/context/CartContext";
 import { useStoreConfig } from "@/context/StoreConfigContext";
 import { brl } from "@/lib/api";
-import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingBag, Pencil } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import FreeShippingProgress from "@/components/FreeShippingProgress";
+import ProductCustomizationDialog from "@/components/ProductCustomizationDialog";
 
 export default function CartDrawer() {
-  const { items, total, isOpen, setIsOpen, setQty, remove } = useCart();
+  const { items, total, isOpen, setIsOpen, setQty, remove, updateCustomized } = useCart();
   const { config } = useStoreConfig();
   const navigate = useNavigate();
+  const [editingItem, setEditingItem] = useState(null);
 
   const goCheckout = () => {
     setIsOpen(false);
@@ -70,6 +73,26 @@ export default function CartDrawer() {
                       .join(" · ")}
                   </p>
                 )}
+                {item.selected_options?.length > 0 && (
+                  <div className="mt-1 space-y-0.5 text-xs text-stone-500">
+                    {item.selected_options.map((option) => (
+                      <p key={`${option.group_id}:${option.option_id}`}>
+                        <span className="font-medium text-stone-600">{option.group_name}:</span>{" "}
+                        {option.quantity > 1 ? `${option.quantity}x ` : ""}{option.option_name}
+                        {Number(option.additional_price || 0) > 0 && (
+                          <span className="text-brand">
+                            {" "}+{brl(Number(option.additional_price || 0) * Number(option.quantity || 1))}
+                          </span>
+                        )}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {item.item_observation && (
+                  <p className="mt-1 text-xs text-stone-500">
+                    <span className="font-medium text-stone-600">Observação:</span> {item.item_observation}
+                  </p>
+                )}
                 <p className="text-xs text-stone-500 mt-0.5">{brl(item.unit_price)} un.</p>
                 <div className="mt-2 flex items-center gap-2">
                   <button
@@ -99,6 +122,16 @@ export default function CartDrawer() {
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
+                  {item.option_groups?.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingItem({ ...item, itemKey })}
+                      className="h-7 w-7 grid place-items-center rounded-md text-stone-400 hover:text-brand"
+                      aria-label="Editar personalização"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="text-sm font-semibold text-stone-900 shrink-0">
@@ -137,6 +170,40 @@ export default function CartDrawer() {
           </Button>
         </div>
       </SheetContent>
+      {editingItem && (
+        <ProductCustomizationDialog
+          product={{
+            id: editingItem.product_id,
+            name: editingItem.name,
+            image_url: editingItem.image_url,
+            price: editingItem.base_price,
+            promo_active: false,
+            option_groups: editingItem.option_groups || [],
+          }}
+          open={!!editingItem}
+          onOpenChange={(open) => {
+            if (!open) setEditingItem(null);
+          }}
+          initialQuantity={editingItem.quantity}
+          initialSelectedOptions={editingItem.selected_options || []}
+          initialObservation={editingItem.item_observation || ""}
+          onConfirm={(customization) => {
+            updateCustomized(
+              editingItem.itemKey,
+              {
+                id: editingItem.product_id,
+                name: editingItem.name,
+                image_url: editingItem.image_url,
+                price: editingItem.base_price,
+                promo_active: false,
+                option_groups: editingItem.option_groups || [],
+              },
+              customization
+            );
+            setEditingItem(null);
+          }}
+        />
+      )}
     </Sheet>
   );
 }

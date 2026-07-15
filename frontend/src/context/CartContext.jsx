@@ -23,6 +23,44 @@ export function CartProvider({ children }) {
     item.cart_key ||
     `${item.item_type || "product"}:${item.combo_id || item.product_id}`;
 
+  const customizationSignature = (productId, selectedOptions = [], itemObservation = "") => {
+    const optionPart = selectedOptions
+      .map((option) => `${option.group_id}:${option.option_id}:${Number(option.quantity || 1)}`)
+      .sort()
+      .join("|");
+    return `${productId}|${optionPart}|${(itemObservation || "").trim()}`;
+  };
+
+  const customizedCartKey = (productId, selectedOptions, itemObservation) =>
+    `product:${productId}:custom:${customizationSignature(productId, selectedOptions, itemObservation)}`;
+
+  const customizedItem = (product, customization) => {
+    const selectedOptions = customization.selected_options || [];
+    const itemObservation = (customization.item_observation || "").trim();
+    const signature = customizationSignature(product.id, selectedOptions, itemObservation);
+    return {
+      cart_key: customizedCartKey(product.id, selectedOptions, itemObservation),
+      customization_signature: signature,
+      item_type: "product",
+      product_id: product.id,
+      name: product.name,
+      image_url: product.image_url,
+      quantity: customization.quantity,
+      base_price: effectivePrice(product),
+      unit_price: Number(customization.unit_price),
+      selected_options: selectedOptions.map((option) => ({
+        group_id: option.group_id,
+        group_name: option.group_name,
+        option_id: option.option_id,
+        option_name: option.option_name,
+        quantity: option.quantity,
+        additional_price: option.additional_price,
+      })),
+      item_observation: itemObservation,
+      option_groups: product.option_groups || [],
+    };
+  };
+
   const add = (product, qty = 1) => {
     setItems((curr) => {
       const key = `product:${product.id}`;
@@ -44,6 +82,38 @@ export function CartProvider({ children }) {
           quantity: qty,
         },
       ];
+    });
+    setIsOpen(true);
+  };
+
+  const addCustomized = (product, customization) => {
+    const nextItem = customizedItem(product, customization);
+
+    setItems((curr) => {
+      const found = curr.find((i) => cartKey(i) === nextItem.cart_key);
+      if (found) {
+        return curr.map((i) =>
+          cartKey(i) === nextItem.cart_key ? { ...i, quantity: i.quantity + nextItem.quantity } : i
+        );
+      }
+      return [...curr, nextItem];
+    });
+    setIsOpen(true);
+  };
+
+  const updateCustomized = (itemKey, product, customization) => {
+    const nextItem = customizedItem(product, customization);
+    setItems((curr) => {
+      const withoutOriginal = curr.filter((item) => cartKey(item) !== itemKey);
+      const found = withoutOriginal.find((item) => cartKey(item) === nextItem.cart_key);
+      if (found) {
+        return withoutOriginal.map((item) =>
+          cartKey(item) === nextItem.cart_key
+            ? { ...item, quantity: item.quantity + nextItem.quantity }
+            : item
+        );
+      }
+      return [...withoutOriginal, nextItem];
     });
     setIsOpen(true);
   };
@@ -96,7 +166,7 @@ export function CartProvider({ children }) {
 
   return (
     <CartContext.Provider
-      value={{ items, total, count, add, addCombo, remove, setQty, clear, isOpen, setIsOpen }}
+      value={{ items, total, count, add, addCustomized, updateCustomized, addCombo, remove, setQty, clear, isOpen, setIsOpen }}
     >
       {children}
     </CartContext.Provider>

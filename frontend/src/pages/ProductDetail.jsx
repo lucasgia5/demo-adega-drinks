@@ -6,12 +6,14 @@ import CartDrawer from "@/components/CartDrawer";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, Minus } from "lucide-react";
+import ProductCustomizationDialog, { activeOptionGroups } from "@/components/ProductCustomizationDialog";
 
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [qty, setQty] = useState(1);
+  const [customizing, setCustomizing] = useState(false);
   const { add } = useCart();
 
   useEffect(() => {
@@ -49,6 +51,7 @@ export default function ProductDetail() {
 
   const isPromo = product.promo_active && product.promo_price != null;
   const price = isPromo ? product.promo_price : product.price;
+  const hasActiveOptionGroups = activeOptionGroups(product).length > 0;
 
   return (
     <div className="min-h-screen bg-brand-cream">
@@ -115,7 +118,7 @@ export default function ProductDetail() {
               </div>
               <Button
                 disabled={!product.available}
-                onClick={() => add(product, qty)}
+                onClick={() => (hasActiveOptionGroups ? setCustomizing(true) : add(product, qty))}
                 className="flex-1 h-12 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium"
                 data-testid="detail-add-to-cart"
               >
@@ -125,6 +128,12 @@ export default function ProductDetail() {
           </div>
         </div>
       </div>
+      <ProductCustomizationDialog
+        product={product}
+        open={customizing}
+        onOpenChange={setCustomizing}
+        initialQuantity={qty}
+      />
       <CartDrawer />
     </div>
   );
